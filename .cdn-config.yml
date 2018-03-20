@@ -1,0 +1,12 @@
+---
+name: BYU Browser OAuth Implicit Grant
+description: BYU Implicit grant implementation
+resources:
+  - src: dist/**
+    dest: ./
+entrypoints:
+  implicit-grant.js: 'ES Module - implicit grant client'
+  implicit-grant.min.js: 'Minified - ES Module - implicit grant client'
+  implicit-grant.nomodule.js: 'Transpiled implicit grant client'
+  implicit-grant.nomodule.min.js: 'Minfied - Transpiled implicit grant client'
+docs: https://github.com/byuweb/byu-browser-oauth-implicit

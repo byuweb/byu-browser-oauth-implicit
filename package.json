@@ -7,7 +7,16 @@
   "author": "BYU Office of Information Technology",
   "license": "Apache-2.0",
   "private": true,
+  "scripts": {
+    "build": "rollup -c"
+  },
   "dependencies": {
     "@byuweb/browser-oauth": "^0.1.0"
+  },
+  "devDependencies": {
+    "buble": "^0.19.3",
+    "rollup": "^0.57.1",
+    "rollup-plugin-buble": "^0.19.2",
+    "rollup-plugin-uglify": "^3.0.0"
   }
 }

@@ -1,5 +1,69 @@
 /*
  * Copyright 2018 Brigham Young University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+const EVENT_PREFIX = 'byu-browser-oauth';
+
+const STATE_CHANGE_EVENT = `${EVENT_PREFIX}-state-changed`;
+const LOGIN_REQUESTED_EVENT = `${EVENT_PREFIX}-login-requested`;
+const LOGOUT_REQUESTED_EVENT = `${EVENT_PREFIX}-logout-requested`;
+const REFRESH_REQUESTED_EVENT = `${EVENT_PREFIX}-refresh-requested`;
+const STATE_REQUESTED_EVENT = `${EVENT_PREFIX}-state-requested`;
+
+const STATE_INDETERMINATE = 'indeterminate';
+const STATE_UNAUTHENTICATED = 'unauthenticated';
+const STATE_AUTHENTICATED = 'authenticated';
+const STATE_AUTHENTICATING = 'authenticating';
+const STATE_ERROR = 'error';
+
+let store = {state: STATE_INDETERMINATE};
+
+let observer = onStateChange(detail => {
+    store = detail;
+});
+
+function onStateChange(callback) {
+    const func = function(e) {
+        callback(e.detail);
+    };
+    document.addEventListener(STATE_CHANGE_EVENT, func, false);
+    if (store.state === STATE_INDETERMINATE) {
+        dispatch(STATE_REQUESTED_EVENT, {callback});
+    } else {
+        callback(store);
+    }
+    return {
+        offStateChange: function() {
+            document.removeEventListener(STATE_CHANGE_EVENT, func, false);
+        }
+    }
+}
+
+function dispatch(name, detail) {
+    let event;
+    if (typeof window.CustomEvent === 'function') {
+        event = new CustomEvent(name, {detail});
+    } else {
+        event = document.createEvent('CustomEvent');
+        event.initCustomEvent(name, true, false, detail);
+    }
+    document.dispatchEvent(event);
+}
+
+/*
+ * Copyright 2018 Brigham Young University
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +78,11 @@
  * limitations under the License.
  */
 
-import * as authn from './node_modules/@byuweb/browser-oauth/byu-browser-oauth.js';
-
-export const DEFAULT_ISSUER = 'https://api.byu.edu';
+const DEFAULT_ISSUER = 'https://api.byu.edu';
 
 let config;
 const observers = {};
-let store = Object.freeze({ state: authn.STATE_INDETERMINATE });
+let store$1 = Object.freeze({ state: STATE_INDETERMINATE });
 
 /**
  * @typedef {} ImplicitConfig
@@ -34,7 +96,7 @@ let store = Object.freeze({ state: authn.STATE_INDETERMINATE });
  * 
  * @param {ImplicitConfig} cfg 
  */
-export function configure(cfg) {
+function configure(cfg) {
     console.log('config', cfg);
     if (!cfg) {
         throw new Error('cfg must be defined');
@@ -48,10 +110,10 @@ export function configure(cfg) {
         requireAuthentication: false,
     }, cfg);
 
-    listen(authn.LOGIN_REQUESTED_EVENT, startLogin);
-    listen(authn.LOGOUT_REQUESTED_EVENT, startLogout);
-    listen(authn.REFRESH_REQUESTED_EVENT, startRefresh);
-    listen(authn.STATE_REQUESTED_EVENT, handleStateRequested);
+    listen(LOGIN_REQUESTED_EVENT, startLogin);
+    listen(LOGOUT_REQUESTED_EVENT, startLogout);
+    listen(REFRESH_REQUESTED_EVENT, startRefresh);
+    listen(STATE_REQUESTED_EVENT, handleStateRequested);
 
     maybeHandleAuthenticationCallback();
 }
@@ -59,10 +121,10 @@ export function configure(cfg) {
 function maybeHandleAuthenticationCallback() {
     if (!isAuthenticationCallback()) {
         console.log('Not an auth callback');
-        state(authn.STATE_UNAUTHENTICATED);
+        state$1(STATE_UNAUTHENTICATED);
         return;
     }
-    state(authn.STATE_AUTHENTICATING);
+    state$1(STATE_AUTHENTICATING);
     const params = new URLSearchParams(window.location.hash.substring(1));
     if (params.has('error')) {
         const error = {
@@ -70,8 +132,8 @@ function maybeHandleAuthenticationCallback() {
             description: params.get('error_description'),
             uri: params.get('error_uri')
         };
-        state(
-            authn.STATE_ERROR,
+        state$1(
+            STATE_ERROR,
             null,
             null,
             error
@@ -109,7 +171,7 @@ function maybeHandleAuthenticationCallback() {
 
         const displayName = familyNamePosition === 'F' ? `${familyName} ${givenName}` : `${givenName} ${familyName}`;
 
-        const user = {
+        const user$$1 = {
             personId: roClaims.person_id,
             byuId: roClaims.byu_id,
             netId: roClaims.net_id,
@@ -123,7 +185,7 @@ function maybeHandleAuthenticationCallback() {
             rawUserInfo: json
         };
 
-        const token = {
+        const token$$1 = {
             bearer: accessToken,
             authorizationHeader: authHeader,
             expiresAt,
@@ -135,7 +197,7 @@ function maybeHandleAuthenticationCallback() {
             rawUserInfo: json
         };
 
-        state(authn.STATE_AUTHENTICATED, token, user);
+        state$1(STATE_AUTHENTICATED, token$$1, user$$1);
     });
 }
 
@@ -171,12 +233,12 @@ function isAuthenticationCallback() {
     return false;
 }
 
-function state(state, token, user, error) {
-    store = Object.freeze({ state, token, user, error });
-    dispatch(authn.STATE_CHANGE_EVENT, store);
+function state$1(state$$1, token$$1, user$$1, error) {
+    store$1 = Object.freeze({ state: state$$1, token: token$$1, user: user$$1, error });
+    dispatch$1(STATE_CHANGE_EVENT, store$1);
 }
 
-export function startLogin() {
+function startLogin() {
     console.log('startLogin', config);
 
     const csrf = saveLoginToken(randomString(), {});
@@ -187,28 +249,28 @@ export function startLogin() {
     window.location = loginUrl;
 }
 
-export function startLogout() {
+function startLogout() {
     console.log('startLogout');
 }
 
-function saveLoginToken(token, pageState) {
-    const value = `${token}.${btoa(JSON.stringify(pageState))}`;
+function saveLoginToken(token$$1, pageState) {
+    const value = `${token$$1}.${btoa(JSON.stringify(pageState))}`;
 
     if (storageAvailable('session')) {
         window.sessionStorage.setItem('oauth-state', value);
-        return 's.' + token;
+        return 's.' + token$$1;
     } else {
         document.cookie = `oauth-state=${value};max-age=300`;
-        return 'c.' + token;
+        return 'c.' + token$$1;
     }
 }
 
-export function startRefresh() {
+function startRefresh() {
     startLogin();
 }
 
-export function handleStateRequested({ callback }) {
-    callback(store);
+function handleStateRequested({ callback }) {
+    callback(store$1);
 }
 
 function storageAvailable(type) {
@@ -247,11 +309,11 @@ function listen(event, listener) {
     if (observers.hasOwnProperty(event)) {
         throw new Error('A listener is already registered for ' + event);
     }
-    const obs = observers[event] = function (e) { listener(e.detail) };
+    const obs = observers[event] = function (e) { listener(e.detail); };
     document.addEventListener(event, obs, false);
 }
 
-function dispatch(name, detail) {
+function dispatch$1(name, detail) {
     let event;
     if (typeof window.CustomEvent === 'function') {
         event = new CustomEvent(name, { detail });
@@ -261,3 +323,6 @@ function dispatch(name, detail) {
     }
     document.dispatchEvent(event);
 }
+
+export { DEFAULT_ISSUER, configure, startLogin, startLogout, startRefresh, handleStateRequested };
+//# sourceMappingURL=implicit-grant.js.map
