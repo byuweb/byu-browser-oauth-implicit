@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Implicit Grant Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script type="module">
+        import * as implicit from './implicit-grant.js';
+
+        implicit.configure({
+            clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca',
+        });
+    </script>
+</head>
+
+<body>
+
+    <button id="sign-in">Sign In</button>
+    
+    <span id="name"></span>
+
+    <script type="module">
+        import * as authn from './node_modules/@byuweb/browser-oauth/byu-browser-oauth.js';
+        document.getElementById('sign-in')
+            .addEventListener('click', () => authn.login(), false);
+
+        authn.onStateChange(({state, token, user, error}) => {
+            console.log('onStateChange', state, token, user, error);
+            if (state === authn.STATE_AUTHENTICATED) {
+                document.getElementById('name').innerText = user.name.displayName;
+            }
+        });
+    </script>
+</body>
+
+</html>
