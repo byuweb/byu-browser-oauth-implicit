@@ -7,29 +7,58 @@
     <title>Implicit Grant Test</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <script type="module">
-        import * as implicit from './implicit-grant.js';
-
-        implicit.configure({
-            clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca',
-        });
+    <script>
+        var oauthConfig = {
+            clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca'
+        };
     </script>
+
+    <script type="module">
+        // import * as implicit from 'https://dev.cdn.byu.edu/browser-oauth-implicit/latest/implicit-grant.min.js';
+        import * as implicit from './src/implicit-grant.js';
+
+        implicit.configure(oauthConfig);
+    </script>
+    <script nomodule src="./dist/implicit-grant.nomodule.js"></script>
+    <script nomodule>
+        BYU.oauth.implicit.configure(oauthConfig);
+    </script>
+
+    <style>
+        .has-user #sign-in {
+            display: none;
+        }
+
+        #name, #sign-out {
+            display: none;
+        }
+
+        .has-user #name, .has-user #sign-out {
+            display: block;
+        }
+        
+    </style>
 </head>
 
 <body>
 
     <button id="sign-in">Sign In</button>
     
-    <span id="name"></span>
+    <h2 id="name"></h2>
+
+    <button id="sign-out">Sign Out</button>
 
     <script type="module">
         import * as authn from './node_modules/@byuweb/browser-oauth/byu-browser-oauth.js';
         document.getElementById('sign-in')
             .addEventListener('click', () => authn.login(), false);
+        document.getElementById('sign-out')
+            .addEventListener('click', () => authn.logout(), false);
 
-        authn.onStateChange(({state, token, user, error}) => {
-            console.log('onStateChange', state, token, user, error);
+        new authn.AuthenticationObserver(({state, token, user, error}) => {
+            console.log('authn observer', state, token, user, error);
             if (state === authn.STATE_AUTHENTICATED) {
+                document.body.classList.add('has-user');
                 document.getElementById('name').innerText = user.name.displayName;
             }
         });

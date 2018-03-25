@@ -3,69 +3,19 @@ this.BYU.oauth = this.BYU.oauth || {};
 this.BYU.oauth.implicit = (function (exports) {
     'use strict';
 
-    /*
-     * Copyright 2018 Brigham Young University
-     *
-     * Licensed under the Apache License, Version 2.0 (the "License");
-     * you may not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *     http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing, software
-     * distributed under the License is distributed on an "AS IS" BASIS,
-     * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     * See the License for the specific language governing permissions and
-     * limitations under the License.
-     */
-
     var EVENT_PREFIX = 'byu-browser-oauth';
 
-    var STATE_CHANGE_EVENT = EVENT_PREFIX + "-state-changed";
-    var LOGIN_REQUESTED_EVENT = EVENT_PREFIX + "-login-requested";
-    var LOGOUT_REQUESTED_EVENT = EVENT_PREFIX + "-logout-requested";
-    var REFRESH_REQUESTED_EVENT = EVENT_PREFIX + "-refresh-requested";
-    var STATE_REQUESTED_EVENT = EVENT_PREFIX + "-state-requested";
+    var EVENT_STATE_CHANGE = EVENT_PREFIX + "-state-changed";
+    var EVENT_LOGIN_REQUESTED = EVENT_PREFIX + "-login-requested";
+    var EVENT_LOGOUT_REQUESTED = EVENT_PREFIX + "-logout-requested";
+    var EVENT_REFRESH_REQUESTED = EVENT_PREFIX + "-refresh-requested";
+    var EVENT_CURRENT_INFO_REQUESTED = EVENT_PREFIX + "-current-info-requested";
 
     var STATE_INDETERMINATE = 'indeterminate';
     var STATE_UNAUTHENTICATED = 'unauthenticated';
     var STATE_AUTHENTICATED = 'authenticated';
     var STATE_AUTHENTICATING = 'authenticating';
     var STATE_ERROR = 'error';
-
-    var store = {state: STATE_INDETERMINATE};
-
-    var observer = onStateChange(function (detail) {
-        store = detail;
-    });
-
-    function onStateChange(callback) {
-        var func = function(e) {
-            callback(e.detail);
-        };
-        document.addEventListener(STATE_CHANGE_EVENT, func, false);
-        if (store.state === STATE_INDETERMINATE) {
-            dispatch(STATE_REQUESTED_EVENT, {callback: callback});
-        } else {
-            callback(store);
-        }
-        return {
-            offStateChange: function() {
-                document.removeEventListener(STATE_CHANGE_EVENT, func, false);
-            }
-        }
-    }
-
-    function dispatch(name, detail) {
-        var event;
-        if (typeof window.CustomEvent === 'function') {
-            event = new CustomEvent(name, {detail: detail});
-        } else {
-            event = document.createEvent('CustomEvent');
-            event.initCustomEvent(name, true, false, detail);
-        }
-        document.dispatchEvent(event);
-    }
 
     /*
      * Copyright 2018 Brigham Young University
@@ -87,7 +37,13 @@ this.BYU.oauth.implicit = (function (exports) {
 
     var config;
     var observers = {};
-    var store$1 = Object.freeze({ state: STATE_INDETERMINATE });
+    var store = Object.freeze({ state: STATE_INDETERMINATE });
+
+    /*
+     * TODOS:
+     *  - implement logout
+     *  - implement requireAuthentication
+     */
 
     /**
      * @typedef {} ImplicitConfig
@@ -115,10 +71,10 @@ this.BYU.oauth.implicit = (function (exports) {
             requireAuthentication: false,
         }, cfg);
 
-        listen(LOGIN_REQUESTED_EVENT, startLogin);
-        listen(LOGOUT_REQUESTED_EVENT, startLogout);
-        listen(REFRESH_REQUESTED_EVENT, startRefresh);
-        listen(STATE_REQUESTED_EVENT, handleStateRequested);
+        listen(EVENT_LOGIN_REQUESTED, startLogin);
+        listen(EVENT_LOGOUT_REQUESTED, startLogout);
+        listen(EVENT_REFRESH_REQUESTED, startRefresh);
+        listen(EVENT_CURRENT_INFO_REQUESTED, handleCurrentInfoRequest);
 
         maybeHandleAuthenticationCallback();
     }
@@ -126,10 +82,10 @@ this.BYU.oauth.implicit = (function (exports) {
     function maybeHandleAuthenticationCallback() {
         if (!isAuthenticationCallback()) {
             console.log('Not an auth callback');
-            state$1(STATE_UNAUTHENTICATED);
+            state(STATE_UNAUTHENTICATED);
             return;
         }
-        state$1(STATE_AUTHENTICATING);
+        state(STATE_AUTHENTICATING);
         var params = new URLSearchParams(window.location.hash.substring(1));
         if (params.has('error')) {
             var error = {
@@ -137,7 +93,7 @@ this.BYU.oauth.implicit = (function (exports) {
                 description: params.get('error_description'),
                 uri: params.get('error_uri')
             };
-            state$1(
+            state(
                 STATE_ERROR,
                 null,
                 null,
@@ -149,6 +105,19 @@ this.BYU.oauth.implicit = (function (exports) {
         var csrf = params.get('state');
 
         window.location.hash = '';
+
+        var pageData;
+        try {
+            pageData = validateCsrfAndGetPageData(csrf);
+        } catch (err) {
+            state(STATE_ERROR, null, null, {
+                type: 'oauth-state-mismatch',
+                description: err.message || err,
+            });
+            return;
+        }
+
+        clearSavedStateFor('s');
 
         var accessToken = params.get('access_token');
         var expiresIn = Number(params.get('expires_in'));
@@ -169,14 +138,14 @@ this.BYU.oauth.implicit = (function (exports) {
             var wso2Claims = getClaims(json, CLAIMS_PREFIX_WSO2);
 
             console.log('claims', roClaims, clientClaims, wso2Claims);
-            
+
             var familyNamePosition = roClaims.surname_position;
             var givenName = json.given_name;
             var familyName = json.family_name;
 
             var displayName = familyNamePosition === 'F' ? (familyName + " " + givenName) : (givenName + " " + familyName);
 
-            var user$$1 = {
+            var user = {
                 personId: roClaims.person_id,
                 byuId: roClaims.byu_id,
                 netId: roClaims.net_id,
@@ -190,7 +159,7 @@ this.BYU.oauth.implicit = (function (exports) {
                 rawUserInfo: json
             };
 
-            var token$$1 = {
+            var token = {
                 bearer: accessToken,
                 authorizationHeader: authHeader,
                 expiresAt: expiresAt,
@@ -202,7 +171,7 @@ this.BYU.oauth.implicit = (function (exports) {
                 rawUserInfo: json
             };
 
-            state$1(STATE_AUTHENTICATED, token$$1, user$$1);
+            state(STATE_AUTHENTICATED, token, user);
         });
     }
 
@@ -238,15 +207,17 @@ this.BYU.oauth.implicit = (function (exports) {
         return false;
     }
 
-    function state$1(state$$1, token$$1, user$$1, error) {
-        store$1 = Object.freeze({ state: state$$1, token: token$$1, user: user$$1, error: error });
-        dispatch$1(STATE_CHANGE_EVENT, store$1);
+    function state(state, token, user, error) {
+        store = Object.freeze({ state: state, token: token, user: user, error: error });
+        dispatch(EVENT_STATE_CHANGE, store);
     }
 
     function startLogin() {
         console.log('startLogin', config);
 
         var csrf = saveLoginToken(randomString(), {});
+
+        console.log('csrf', csrf);
 
         var loginUrl = "https://api.byu.edu/authorize?response_type=token&client_id=" + (config.clientId) + "&redirect_uri=" + (encodeURIComponent(config.callbackUrl)) + "&scope=openid&state=" + csrf;
 
@@ -256,17 +227,106 @@ this.BYU.oauth.implicit = (function (exports) {
 
     function startLogout() {
         console.log('startLogout');
+
+        window.location = 'http://api.byu.edu/logout?redirect_url=' + config.callbackUrl;
+        //https://api.byu.edu/revoke
+
+        //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
+        // const url = `https://api.byu.edu/revoke`;
+
+        // const form = new URLSearchParams();
+        // form.set('token', store.token.bearer);
+        // form.set('client_id', config.clientId);
+        // form.set('token_type_hint', 'access_token');
+
+        // console.log('logout url', url);
+
+        // fetch(url, {
+        //     method: 'POST',
+        //     body: form,
+        //     // headers: {
+        //     //     'Content-Type': 'application/x-www-form-urlencoded'
+        //     // }
+        // }).then(result => {
+        //     console.log('done with logout', result);
+        // });
     }
 
-    function saveLoginToken(token$$1, pageState) {
-        var value = token$$1 + "." + (btoa(JSON.stringify(pageState)));
+    function saveLoginToken(token, pageState) {
+        var name = getStorageName(config.clientId);
+        var value = token + "." + (btoa(JSON.stringify(pageState)));
 
-        if (storageAvailable('session')) {
-            window.sessionStorage.setItem('oauth-state', value);
-            return 's.' + token$$1;
+        var type;
+        if (storageAvailable('sessionStorage')) {
+            window.sessionStorage.setItem(name, value);
+            type = TOKEN_STORE_TYPE_SESSION;
         } else {
-            document.cookie = "oauth-state=" + value + ";max-age=300";
-            return 'c.' + token$$1;
+            document.cookie = name + "=" + value + ";max-age=300";
+            type = TOKEN_STORE_TYPE_COOKIE;
+        }
+        return type + '.' + token;
+    }
+
+    function getStorageName(clientId) {
+        return ("oauth-state-" + (encodeURIComponent(clientId)));
+    }
+
+    var TOKEN_STORE_TYPE_SESSION = 's';
+    var TOKEN_STORE_TYPE_COOKIE = 'c';
+
+    function validateCsrfAndGetPageData(csrf) {
+        var ref = csrf.split('.');
+        var type = ref[0];
+        var token = ref[1];
+        var possibleValues = getSavedStateFor(type);
+        
+        if (possibleValues.length === 0) {
+            console.error('No OAuth state has been stored, or it has expired');
+            throw new Error('Your authentication session has expired or something has gone wrong.');
+        } 
+        var found = possibleValues.map(function (v) { return v.split('.'); })
+            .find(function (ref) {
+                var key = ref[0];
+                var data = ref[1];
+
+                return key === token;
+        });
+        
+        if (!found) {
+            console.error('Authentication state mismatch - no saved values match CSRF token');
+            throw new Error('Your saved authentication information does not match. Please try again.');
+        }
+
+        var pageData = found[1];
+
+        return JSON.parse(atob(pageData));
+    }
+
+    function getSavedStateFor(type) {
+        var name = getStorageName(config.clientId);
+        switch (type) {
+            case TOKEN_STORE_TYPE_SESSION:
+                return [window.sessionStorage.getItem(name)];
+            case TOKEN_STORE_TYPE_COOKIE:
+                var values = [];
+                (document.cookie || '').split(';').map(function (c) { return c.trim(); }).forEach(function (cookie) {
+                    if (cookie.indexOf(name + '=') === 0) {
+                        values.push(cookie.split('=', 2)[1]);
+                    }
+                });
+                return values;
+        }
+    }
+
+    function clearSavedStateFor(type) {
+        var name = getStorageName(config.clientId);
+        switch (type) {
+            case TOKEN_STORE_TYPE_SESSION:
+                window.sessionStorage.removeItem(name);
+                break;
+            case TOKEN_STORE_TYPE_COOKIE:
+                document.cookie = name + '=null;expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                break;
         }
     }
 
@@ -274,10 +334,10 @@ this.BYU.oauth.implicit = (function (exports) {
         startLogin();
     }
 
-    function handleStateRequested(ref) {
+    function handleCurrentInfoRequest(ref) {
         var callback = ref.callback;
 
-        callback(store$1);
+        callback(store);
     }
 
     function storageAvailable(type) {
@@ -305,14 +365,15 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     function randomString() {
-        var idArray = Uint32Array.of(1);
+        var idArray = new Uint32Array(3);
         var crypto = window.crypto || window.msCrypto;
         crypto.getRandomValues(idArray);
 
-        return new String(idArray[0]);
+        return idArray.reduce(function (str, cur) { return str + cur.toString(16); }, '');
     }
 
     function listen(event, listener) {
+        console.log('listening to', event);
         if (observers.hasOwnProperty(event)) {
             throw new Error('A listener is already registered for ' + event);
         }
@@ -320,7 +381,7 @@ this.BYU.oauth.implicit = (function (exports) {
         document.addEventListener(event, obs, false);
     }
 
-    function dispatch$1(name, detail) {
+    function dispatch(name, detail) {
         var event;
         if (typeof window.CustomEvent === 'function') {
             event = new CustomEvent(name, { detail: detail });
@@ -336,7 +397,7 @@ this.BYU.oauth.implicit = (function (exports) {
     exports.startLogin = startLogin;
     exports.startLogout = startLogout;
     exports.startRefresh = startRefresh;
-    exports.handleStateRequested = handleStateRequested;
+    exports.handleCurrentInfoRequest = handleCurrentInfoRequest;
 
     return exports;
 

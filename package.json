@@ -8,13 +8,15 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "start": "live-server --host=localhost --port=8080 --open=demo.html"
   },
   "dependencies": {
-    "@byuweb/browser-oauth": "^0.1.0"
+    "@byuweb/browser-oauth": "^0.2.0"
   },
   "devDependencies": {
     "buble": "^0.19.3",
+    "live-server": "^1.2.0",
     "rollup": "^0.57.1",
     "rollup-plugin-buble": "^0.19.2",
     "rollup-plugin-uglify": "^3.0.0"
