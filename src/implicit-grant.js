@@ -41,7 +41,6 @@ let store = Object.freeze({ state: authn.STATE_INDETERMINATE });
  * @param {ImplicitConfig} cfg 
  */
 export function configure(cfg) {
-    console.log('config', cfg);
     if (!cfg) {
         throw new Error('cfg must be defined');
     }
@@ -64,7 +63,6 @@ export function configure(cfg) {
 
 function maybeHandleAuthenticationCallback() {
     if (!isAuthenticationCallback()) {
-        console.log('Not an auth callback');
         state(authn.STATE_UNAUTHENTICATED);
         return;
     }
@@ -114,13 +112,9 @@ function maybeHandleAuthenticationCallback() {
     }).then(function (resp) {
         return resp.json();
     }).then(function (json) {
-        console.log('got user info', json);
-
         const roClaims = getClaims(json, CLAIMS_PREFIX_RESOURCE_OWNER);
         const clientClaims = getClaims(json, CLAIMS_PREFIX_CLIENT);
         const wso2Claims = getClaims(json, CLAIMS_PREFIX_WSO2);
-
-        console.log('claims', roClaims, clientClaims, wso2Claims);
 
         const familyNamePosition = roClaims.surname_position;
         const givenName = json.given_name;
@@ -172,19 +166,15 @@ function getClaims(userInfo, prefix) {
 
 function isAuthenticationCallback() {
     const isCallbackUrl = window.location.href.indexOf(config.callbackUrl) === 0;
-    console.log(window.location.href, config.callbackUrl, window.location.href.indexOf(config.callbackUrl));
     const hasHash = !!window.location.hash;
 
-    console.log('hasHash', hasHash);
     if (!isCallbackUrl) {
         return false;
     } else if (!hasHash) {
         return false;
     }
     const params = new URLSearchParams(window.location.hash.substring(1));
-    console.log('params', params);
     if (params.has('access_token') || params.has('error')) {
-        console.log('has params');
         return true;
     }
     return false;
@@ -196,21 +186,15 @@ function state(state, token, user, error) {
 }
 
 export function startLogin() {
-    console.log('startLogin', config);
 
     const csrf = saveLoginToken(randomString(), {});
 
-    console.log('csrf', csrf);
-
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${config.clientId}&redirect_uri=${encodeURIComponent(config.callbackUrl)}&scope=openid&state=${csrf}`;
 
-    console.log('loginUrl', loginUrl);
     window.location = loginUrl;
 }
 
 export function startLogout() {
-    console.log('startLogout');
-
     window.location = 'http://api.byu.edu/logout?redirect_url=' + config.callbackUrl;
     //https://api.byu.edu/revoke
 
