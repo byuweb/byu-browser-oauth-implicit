@@ -347,7 +347,6 @@ function randomString() {
 }
 
 function listen(event, listener) {
-    console.log('listening to', event);
     if (observers.hasOwnProperty(event)) {
         throw new Error('A listener is already registered for ' + event);
     }
