@@ -58,6 +58,16 @@ export function configure(cfg) {
     listen(authn.EVENT_REFRESH_REQUESTED, startRefresh);
     listen(authn.EVENT_CURRENT_INFO_REQUESTED, handleCurrentInfoRequest);
 
+    window.addEventListener("message", receiveMessage, false);
+
+function receiveMessage(event) {
+    const {origin, data} = event;
+  if (origin !== window.location.origin) {
+    return;
+  }
+  console.log('popup callback', event);
+}
+
     maybeHandleAuthenticationCallback();
 }
 
@@ -83,13 +93,13 @@ function maybeHandleAuthenticationCallback() {
         return;
     }
 
-    const csrf = params.get('state');
+    const state = params.get('state');
 
     window.location.hash = '';
 
     let pageData;
     try {
-        pageData = validateCsrfAndGetPageData(csrf);
+        pageData = validateCsrfAndGetPageData(state);
     } catch (err) {
         state(authn.STATE_ERROR, null, null, {
             type: 'oauth-state-mismatch',
@@ -104,6 +114,20 @@ function maybeHandleAuthenticationCallback() {
     const expiresIn = Number(params.get('expires_in'));
     const authHeader = `Bearer ${accessToken}`;
     const expiresAt = new Date(Date.now() + (expiresIn * 1000));
+
+        if (pageData.popup) {
+            window.opener.postMessage({
+                token: {
+                    state, accessToken, expiresAt,
+                }
+            }, window.location.origin);
+            window.close();
+        }
+        authenticate(csrf, accessToken, expiresAt);
+}
+
+function authenticate(state, accessToken, expiresAt) {
+    const authHeader = `Bearer ${accessToken}`;
 
     fetch('https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid', {
         method: 'GET',
@@ -187,11 +211,12 @@ function state(state, token, user, error) {
 
 export function startLogin() {
 
-    const csrf = saveLoginToken(randomString(), {});
+    const csrf = saveLoginToken(randomString(), {popup: true});
 
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${config.clientId}&redirect_uri=${encodeURIComponent(config.callbackUrl)}&scope=openid&state=${csrf}`;
 
-    window.location = loginUrl;
+    // window.location = loginUrl;
+    window.open(loginUrl, 'byu-browser-oauth-implicit-popup', 'width=350,height=500');
 }
 
 export function startLogout() {
