@@ -1,6 +1,10 @@
 // Karma configuration
 // Generated on Fri Mar 16 2018 16:09:15 GMT-0600 (MDT)
 
+const rollupBabel = require('rollup-plugin-babel');
+const rollupCjs = require('rollup-plugin-commonjs');
+const rollupNode = require('rollup-plugin-node-resolve');
+
 module.exports = function (config) {
   const userBrowsers = config.browsers;
   config.set({
@@ -11,13 +15,13 @@ module.exports = function (config) {
 
     // frameworks to use
     // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
-    frameworks: ['mocha', 'chai', 'detectBrowsers'],
+    frameworks: ['mocha', 'chai', 'detectBrowsers', 'sinon'],
  
     // list of files / patterns to load in the browser
     files: [
       {
         pattern: 'test/*_test.js',
-        watched: false,//Our rollup preprocessor handles watching
+        watched: true,//Our rollup preprocessor handles watching
       },
       {
         pattern: 'src/*.js',
@@ -42,7 +46,8 @@ module.exports = function (config) {
         format: 'iife',
         name: 'byuBrowserOauth',
         sourcemap: 'inline',
-      }
+      },
+      plugins: [rollupBabel(), rollupCjs(), rollupNode({preferBuiltins: false})]
     },
 
     detectBrowsers: {
