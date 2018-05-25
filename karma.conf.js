@@ -20,11 +20,11 @@ module.exports = function (config) {
     // list of files / patterns to load in the browser
     files: [
       {
-        pattern: 'test/*_test.js',
+        pattern: 'test/*_test.mjs',
         watched: true,//Our rollup preprocessor handles watching
       },
       {
-        pattern: 'src/*.js',
+        pattern: 'src/*.mjs',
         included: false,
       }
     ],
@@ -38,7 +38,7 @@ module.exports = function (config) {
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
-      '**/*_test.js': ['rollup'],
+      '**/*_test.mjs': ['rollup'],
     },
 
     rollupPreprocessor: {

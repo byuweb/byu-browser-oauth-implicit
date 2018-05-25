@@ -17,7 +17,7 @@
 "use strict";
 
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
-import {parseHash} from './url.js';
+import {parseHash} from './url.mjs';
 import {StorageHandler} from "./local-storage";
 
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes

@@ -1,0 +1,120 @@
+const EVENT_PREFIX='byu-browser-oauth',EVENT_STATE_CHANGE=`${EVENT_PREFIX}-state-changed`,EVENT_LOGIN_REQUESTED=`${EVENT_PREFIX}-login-requested`,EVENT_LOGOUT_REQUESTED=`${EVENT_PREFIX}-logout-requested`,EVENT_REFRESH_REQUESTED=`${EVENT_PREFIX}-refresh-requested`,EVENT_CURRENT_INFO_REQUESTED=`${EVENT_PREFIX}-current-info-requested`,STATE_INDETERMINATE='indeterminate',STATE_UNAUTHENTICATED='unauthenticated',STATE_AUTHENTICATED='authenticated',STATE_AUTHENTICATING='authenticating',STATE_ERROR='error';/*
+ *  @license
+ *    Copyright 2018 Brigham Young University
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */function parseHash(a){if(!a)return new Map;let b=a;a.startsWith('#')&&(b=a.substr(1));const c=b.split('&').map(function(a){return a.split('=',2)});return new Map(c)}function unwrapExports(a){return a&&a.__esModule&&Object.prototype.hasOwnProperty.call(a,'default')?a['default']:a}function createCommonjsModule(a,b){return b={exports:{}},a(b,b.exports),b.exports}/*!
+ * cookie
+ * Copyright(c) 2012-2014 Roman Shtylman
+ * Copyright(c) 2015 Douglas Christopher Wilson
+ * MIT Licensed
+ *//**
+ * Module exports.
+ * @public
+ */var parse_1=parse,serialize_1=serialize,decode=decodeURIComponent,encode=encodeURIComponent,pairSplitRegExp=/; */,fieldContentRegExp=/^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;/**
+ * Module variables.
+ * @private
+ *//**
+ * RegExp to match field-content in RFC 7230 sec 3.2
+ *
+ * field-content = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+ * field-vchar   = VCHAR / obs-text
+ * obs-text      = %x80-FF
+ *//**
+ * Parse a cookie header.
+ *
+ * Parse the given cookie header string into an object
+ * The object has the various cookies as keys(names) => values
+ *
+ * @param {string} str
+ * @param {object} [options]
+ * @return {object}
+ * @public
+ */function parse(a,b){if('string'!=typeof a)throw new TypeError('argument str must be a string');for(var c={},d=b||{},e=a.split(pairSplitRegExp),f=d.decode||decode,g=0;g<e.length;g++){var h=e[g],i=h.indexOf('=');// skip things that don't look like key=value
+if(!(0>i)){var j=h.substr(0,i).trim(),k=h.substr(++i,h.length).trim();'"'==k[0]&&(k=k.slice(1,-1)),void 0==c[j]&&(c[j]=tryDecode(k,f))}// quoted values
+}return c}/**
+ * Serialize data into a cookie header.
+ *
+ * Serialize the a name value pair into a cookie string suitable for
+ * http headers. An optional options object specified cookie parameters.
+ *
+ * serialize('foo', 'bar', { httpOnly: true })
+ *   => "foo=bar; httpOnly"
+ *
+ * @param {string} name
+ * @param {string} val
+ * @param {object} [options]
+ * @return {string}
+ * @public
+ */function serialize(a,b,c){var d=c||{},e=d.encode||encode;if('function'!=typeof e)throw new TypeError('option encode is invalid');if(!fieldContentRegExp.test(a))throw new TypeError('argument name is invalid');var f=e(b);if(f&&!fieldContentRegExp.test(f))throw new TypeError('argument val is invalid');var g=a+'='+f;if(null!=d.maxAge){var h=d.maxAge-0;if(isNaN(h))throw new Error('maxAge should be a Number');g+='; Max-Age='+Math.floor(h)}if(d.domain){if(!fieldContentRegExp.test(d.domain))throw new TypeError('option domain is invalid');g+='; Domain='+d.domain}if(d.path){if(!fieldContentRegExp.test(d.path))throw new TypeError('option path is invalid');g+='; Path='+d.path}if(d.expires){if('function'!=typeof d.expires.toUTCString)throw new TypeError('option expires is invalid');g+='; Expires='+d.expires.toUTCString()}if(d.httpOnly&&(g+='; HttpOnly'),d.secure&&(g+='; Secure'),d.sameSite){var i='string'==typeof d.sameSite?d.sameSite.toLowerCase():d.sameSite;switch(i){case!0:g+='; SameSite=Strict';break;case'lax':g+='; SameSite=Lax';break;case'strict':g+='; SameSite=Strict';break;default:throw new TypeError('option sameSite is invalid');}}return g}/**
+ * Try decoding a string using a decoding function.
+ *
+ * @param {string} str
+ * @param {function} decode
+ * @private
+ */function tryDecode(a,b){try{return b(a)}catch(b){return a}}var cookie={parse:parse_1,serialize:serialize_1},CookieStorage_1=createCommonjsModule(function(a,b){function c(a,b){if(!(a instanceof b))throw new TypeError('Cannot call a class as a function')}Object.defineProperty(b,'__esModule',{value:!0});var d=function(){function a(a,b){for(var c,d=0;d<b.length;d++)c=b[d],c.enumerable=c.enumerable||!1,c.configurable=!0,'value'in c&&(c.writable=!0),Object.defineProperty(a,c.key,c)}return function(b,c,d){return c&&a(b.prototype,c),d&&a(b,d),b}}();b.hasCookies=function(){var a=new g;try{var b='__test';a.setItem(b,'1');var c=a.getItem(b);return a.removeItem(b),'1'===c}catch(a){return!1}};var e=function(a){return a&&a.__esModule?a:{default:a}}(cookie),f='lS_',g=function(){function a(){var b=0<arguments.length&&void 0!==arguments[0]?arguments[0]:{};c(this,a),this.cookieOptions=Object.assign({path:'/'},b),f=b.prefix||f}return d(a,[{key:'getItem',value:function(a){var b=e.default.parse(document.cookie);return b&&b.hasOwnProperty(f+a)?b[f+a]:null}},{key:'setItem',value:function(a,b){return document.cookie=e.default.serialize(f+a,b,this.cookieOptions),b}},{key:'removeItem',value:function(a){var b=Object.assign({},this.cookieOptions,{maxAge:-1});return document.cookie=e.default.serialize(f+a,'',b),null}},{key:'clear',value:function(){var a=e.default.parse(document.cookie);for(var b in a)0===b.indexOf(f)&&this.removeItem(b.substr(f.length));return null}}]),a}();b.default=g});unwrapExports(CookieStorage_1);var CookieStorage_2=CookieStorage_1.hasCookies,isSupported_1=createCommonjsModule(function(a,b){function c(a){try{var b=window[a];return b.setItem(d,'1'),b.removeItem(d),!0}catch(a){return!1}}Object.defineProperty(b,'__esModule',{value:!0}),b.default=function(){var a=0<arguments.length&&arguments[0]!==void 0?arguments[0]:'localStorage',b=(a+'').replace(/storage$/i,'').toLowerCase();if('local'===b)return c('localStorage');if('session'===b)return c('sessionStorage');if('cookie'===b)return(0,CookieStorage_1.hasCookies)();if('memory'===b)return!0;throw new Error('Storage method `'+a+'` is not available.\n    Please use one of the following: localStorage, sessionStorage, cookieStorage, memoryStorage.')};var d='__test'});unwrapExports(isSupported_1);var MemoryStorage_1=createCommonjsModule(function(a,b){function c(a,b){if(!(a instanceof b))throw new TypeError('Cannot call a class as a function')}Object.defineProperty(b,'__esModule',{value:!0});var d=function(){function a(a,b){for(var c,d=0;d<b.length;d++)c=b[d],c.enumerable=c.enumerable||!1,c.configurable=!0,'value'in c&&(c.writable=!0),Object.defineProperty(a,c.key,c)}return function(b,c,d){return c&&a(b.prototype,c),d&&a(b,d),b}}(),e=function(){function a(){c(this,a),this._data={}}return d(a,[{key:'getItem',value:function(a){return this._data.hasOwnProperty(a)?this._data[a]:null}},{key:'setItem',value:function(a,b){return this._data[a]=b+''}},{key:'removeItem',value:function(a){return delete this._data[a]}},{key:'clear',value:function(){return this._data={}}}]),a}();b.default=e});unwrapExports(MemoryStorage_1);var lib=createCommonjsModule(function(a,b){function c(a){return a&&a.__esModule?a:{default:a}}Object.defineProperty(b,'__esModule',{value:!0}),b.MemoryStorage=b.CookieStorage=b.isSupported=b.storage=void 0;var d=c(isSupported_1),e=c(CookieStorage_1),f=c(MemoryStorage_1),g=null;b.storage=(0,d.default)('localStorage')?g=window.localStorage:(0,d.default)('sessionStorage')?g=window.sessionStorage:(0,d.default)('cookieStorage')?g=new e.default:g=new f.default,b.default=g,b.storage=g,b.isSupported=d.default,b.CookieStorage=e.default,b.MemoryStorage=f.default}),storage=unwrapExports(lib),lib_1=lib.MemoryStorage,lib_2=lib.CookieStorage,lib_3=lib.isSupported,lib_4=lib.storage;/*
+ *  @license
+ *    Copyright 2018 Brigham Young University
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */class StorageHandler{saveOAuthState(a,b){storage.setItem(getKey(a),JSON.stringify(b))}getOAuthState(a){const b=storage.getItem(getKey(a));return b?JSON.parse(b):null}clearOAuthState(a){storage.removeItem(getKey(a))}}function getKey(a){return'oauth-state-'+encodeURIComponent(a)}/*
+ *  @license
+ *    Copyright 2018 Brigham Young University
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */const STORED_STATE_LIFETIME=300000;// 5 minutes
+class ImplicitGrantProvider{constructor(a,b,c,d=new StorageHandler){this.config=a,this.window=b,this.document=c,this.storageHandler=d,this._listeners={},this.store=Object.freeze({state:STATE_INDETERMINATE,user:null,token:null,error:null})}_changeState(a,b,c,d){this.store=Object.freeze({state:a,user:b,token:c,error:d}),_dispatchEvent(this,EVENT_STATE_CHANGE,this.store)}async startup(){this.listen(),this._changeState(STATE_INDETERMINATE);const a=this._location,b=this._hashParams;if(this.isAuthenticationCallback(a.href,b)){this._changeState(STATE_AUTHENTICATING);try{const{state:c,user:d,token:e,error:f}=await _handleAuthenticationCallback(this.config,a,b,this.storageHandler);this._changeState(c,d,e,f)}catch(a){console.error('OAuth Error',a),this._changeState(STATE_ERROR,void 0,void 0,a)}}else this._changeState(STATE_UNAUTHENTICATED)}get _location(){return this.window.location}get _hashParams(){return parseHash(this._location.hash)}isAuthenticationCallback(a,b){const c=0===a.indexOf(this.config.callbackUrl),d=0!==b.size;return!!(c&&d)&&(b.has('access_token')||b.has('error'))}shutdown(){this.unlisten(),this._changeState(STATE_INDETERMINATE)}listen(){_listenTo(this,EVENT_LOGIN_REQUESTED,this.startLogin),_listenTo(this,EVENT_LOGOUT_REQUESTED,this.startLogout),_listenTo(this,EVENT_REFRESH_REQUESTED,this.startRefresh),_listenTo(this,EVENT_CURRENT_INFO_REQUESTED,this.handleCurrentInfoRequest)}unlisten(){_unlistenTo(this,EVENT_LOGIN_REQUESTED),_unlistenTo(this,EVENT_LOGOUT_REQUESTED),_unlistenTo(this,EVENT_REFRESH_REQUESTED),_unlistenTo(this,EVENT_CURRENT_INFO_REQUESTED)}startLogin(){console.log('starting login',this);const{clientId:a,callbackUrl:b}=this.config,c=randomString(),d=_prepareStoredState(Date.now()+STORED_STATE_LIFETIME,c,{});this.storageHandler.saveOAuthState(this.config.clientId,d);const e=`https://api.byu.edu/authorize?response_type=token&client_id=${a}&redirect_uri=${encodeURIComponent(b)}&scope=openid&state=${c}`;console.warn(`[OAuth] - Redirecting user to '${e}'`),this.window.location=e}startLogout(){const a=this.config.callbackUrl;this.window.location='http://api.byu.edu/logout?redirect_url='+a}startRefresh(){this.startLogin()}handleCurrentInfoRequest({callback:a}){a&&a(this.store)}}function _listenTo(a,b,c){if(a._listeners.hasOwnProperty(b))throw new Error('A listener is already registered for '+b);const d=a._listeners[b]=function(b){c.call(a,b.detail)}.bind(a);a.document.addEventListener(b,d,!1)}function _unlistenTo(a,b){a._listeners.hasOwnProperty(b)&&(a.document.removeEventListener(b,a._listeners[b],!1),delete a._listeners[b])}function _dispatchEvent(a,b,c){let d;'function'==typeof a.window.CustomEvent?d=new CustomEvent(b,{detail:c}):(d=a.document.createEvent('CustomEvent'),d.initCustomEvent(b,!0,!1,c)),a.document.dispatchEvent(d)}async function _handleAuthenticationCallback(a,b,c,d){if(c.has('error'))throw new OAuthError(c.get('error'),c.get('error_description'),c.get('error_uri'));const e=c.get('state'),f=d.getOAuthState(a.clientId);d.clearOAuthState(a.clientId);const g=_validateAndGetStoredState(f,e),h=c.get('access_token'),i=+c.get('expires_in'),j=new Date(Date.now()+1e3*i),k=`Bearer ${h}`,l=await _fetchUserInfo(k),m=_processUserInfo(l),n=_processTokenInfo(l,h,j,k);return b.hash='',{state:STATE_AUTHENTICATED,user:m,token:n}}async function _fetchUserInfo(a){const b=await fetch('https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid',{method:'GET',headers:new Headers({Accept:'application/json',Authorization:a}),mode:'cors'});if(200!==b.status){const a=await b.text();if(403===b.status)if(a.includes('<ams:code>900908</ams:code>'))throw console.error(`DEVELOPER ERROR: You may not be subscribed to the OpenID UserInfo endpoint. Please visit https://api.byu.edu/store/apis/info?name=OpenID-Userinfo&version=v1&provider=BYU%2Fjmooreoa to subscribe.`),new OAuthError('not-subscribe-to-user-info','This page has an authentication configuration error. Developers, see the console for details.');else throw new OAuthError('invalid-oauth-token','The provided authentication token is invalid. Please try again.');throw console.error('Error getting OAuth User Info. Status Code:',b.status,'Response:\n',a),new OAuthError('unable-to-get-user-info','Unable to fetch user information. Please try again.')}return await b.json()}const CLAIMS_PREFIX_RESOURCE_OWNER='http://byu.edu/claims/resourceowner_',CLAIMS_PREFIX_CLIENT='http://byu.edu/claims/client_',CLAIMS_PREFIX_WSO2='http://wso2.org/claims/';function getClaims(a,b){return Object.keys(a).filter(function(a){return a.startsWith(b)}).reduce(function(c,d){return c[d.substr(b.length)]=a[d],c},{})}function _processUserInfo(a){const b=getClaims(a,CLAIMS_PREFIX_RESOURCE_OWNER),c=b.surname_position,d=a.given_name,e=a.family_name,f='F'===c?`${e} ${d}`:`${d} ${e}`;return{personId:b.person_id,byuId:b.byu_id,netId:b.net_id,name:{sortName:b.sort_name,displayName:f,givenName:d,familyName:e,familyNamePosition:c},rawUserInfo:a}}function _processTokenInfo(a,b,c,d){const e=getClaims(a,CLAIMS_PREFIX_CLIENT),f=getClaims(a,CLAIMS_PREFIX_WSO2);return{bearer:b,authorizationHeader:d,expiresAt:c,client:{id:f.client_id,byuId:e.byu_id,appName:f.applicationname},rawUserInfo:a}}function _validateAndGetStoredState(a,b){const{e:c,c:d,s:e}=a;if(b!==d)throw new OAuthError('oauth-state-mismatch','Your saved authentication information does not match. Please try again.');if(+c<Date.now())throw new OAuthError('oauth-state-expired','Your login attempt has timed out. Please try again.');return e}function _prepareStoredState(a,b,c){return{e:a,c:b,s:c}}class OAuthError extends Error{constructor(a,b,c){super('OAuth Error: '+b),this.type=a,this.description=b,this.uri=c}}function randomString(){let a=new Uint32Array(3);const b=window.crypto||window.msCrypto;return b.getRandomValues(a),a.reduce(function(a,b){return a+b.toString(16)},'')}/*
+ * Copyright 2018 Brigham Young University
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */const DEFAULT_ISSUER='https://api.byu.edu',GLOBAL_CONFIG_KEY='byu-oauth-implicit-config';/**
+ * @typedef {} ImplicitConfig
+ * @prop {string} clientId
+ * @prop {?string} issuer
+ * @prop {?string} callbackUrl
+ * @prop {?boolean} requireAuthentication
+ *//**
+ *
+ * @param {ImplicitConfig} cfg
+ */async function configure(a){const b=window[GLOBAL_CONFIG_KEY],c=Object.assign({issuer:DEFAULT_ISSUER,callbackUrl:`${location.origin}${location.pathname}`,requireAuthentication:!1},b,a);if(!c.clientId)throw new Error('clientId must be specified in config');const d=new ImplicitGrantProvider(c,window,document);return d.startup()}export{DEFAULT_ISSUER,GLOBAL_CONFIG_KEY,configure};
+//# sourceMappingURL=implicit-grant.min.mjs.map

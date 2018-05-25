@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ImplicitGrantProvider } from "./provider.js";
+import { ImplicitGrantProvider } from "./provider.mjs";
 
 export const DEFAULT_ISSUER = 'https://api.byu.edu';
 

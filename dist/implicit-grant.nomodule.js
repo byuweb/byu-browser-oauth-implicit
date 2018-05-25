@@ -253,15 +253,6 @@ this.BYU.oauth.implicit = (function (exports) {
   	serialize: serialize_1
   };
 
-  var cookie$1 = /*#__PURE__*/Object.freeze({
-    default: cookie,
-    __moduleExports: cookie,
-    parse: parse_1,
-    serialize: serialize_1
-  });
-
-  var _cookie = ( cookie$1 && cookie ) || cookie$1;
-
   var CookieStorage_1 = createCommonjsModule(function (module, exports) {
 
   Object.defineProperty(exports, "__esModule", {
@@ -282,7 +273,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
 
 
-  var _cookie2 = _interopRequireDefault(_cookie);
+  var _cookie2 = _interopRequireDefault(cookie);
 
   function _interopRequireDefault(obj) {
     return obj && obj.__esModule ? obj : { default: obj };
@@ -362,16 +353,8 @@ this.BYU.oauth.implicit = (function (exports) {
   }
   });
 
-  var CookieStorage = unwrapExports(CookieStorage_1);
+  unwrapExports(CookieStorage_1);
   var CookieStorage_2 = CookieStorage_1.hasCookies;
-
-  var CookieStorage$1 = /*#__PURE__*/Object.freeze({
-    default: CookieStorage,
-    __moduleExports: CookieStorage_1,
-    hasCookies: CookieStorage_2
-  });
-
-  var _CookieStorage = ( CookieStorage$1 && CookieStorage ) || CookieStorage$1;
 
   var isSupported_1 = createCommonjsModule(function (module, exports) {
 
@@ -409,7 +392,7 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     if (storage === 'cookie') {
-      return (0, _CookieStorage.hasCookies)();
+      return (0, CookieStorage_1.hasCookies)();
     }
 
     if (storage === 'memory') {
@@ -420,12 +403,7 @@ this.BYU.oauth.implicit = (function (exports) {
   }
   });
 
-  var isSupported = unwrapExports(isSupported_1);
-
-  var isSupported$1 = /*#__PURE__*/Object.freeze({
-    default: isSupported,
-    __moduleExports: isSupported_1
-  });
+  unwrapExports(isSupported_1);
 
   var MemoryStorage_1 = createCommonjsModule(function (module, exports) {
 
@@ -484,16 +462,7 @@ this.BYU.oauth.implicit = (function (exports) {
   exports.default = MemoryStorage;
   });
 
-  var MemoryStorage = unwrapExports(MemoryStorage_1);
-
-  var MemoryStorage$1 = /*#__PURE__*/Object.freeze({
-    default: MemoryStorage,
-    __moduleExports: MemoryStorage_1
-  });
-
-  var _isSupported = ( isSupported$1 && isSupported ) || isSupported$1;
-
-  var _MemoryStorage = ( MemoryStorage$1 && MemoryStorage ) || MemoryStorage$1;
+  unwrapExports(MemoryStorage_1);
 
   var lib = createCommonjsModule(function (module, exports) {
 
@@ -504,15 +473,15 @@ this.BYU.oauth.implicit = (function (exports) {
 
 
 
-  var _isSupported2 = _interopRequireDefault(_isSupported);
+  var _isSupported2 = _interopRequireDefault(isSupported_1);
 
 
 
-  var _CookieStorage2 = _interopRequireDefault(_CookieStorage);
+  var _CookieStorage2 = _interopRequireDefault(CookieStorage_1);
 
 
 
-  var _MemoryStorage2 = _interopRequireDefault(_MemoryStorage);
+  var _MemoryStorage2 = _interopRequireDefault(MemoryStorage_1);
 
   function _interopRequireDefault(obj) {
     return obj && obj.__esModule ? obj : { default: obj };
@@ -733,7 +702,11 @@ this.BYU.oauth.implicit = (function (exports) {
       this.startLogin();
     }
 
-    handleCurrentInfoRequest() {}
+    handleCurrentInfoRequest({ callback }) {
+      if (callback) {
+        callback(this.store);
+      }
+    }
   }
 
   function _listenTo(provider, event, listener) {
@@ -933,14 +906,6 @@ this.BYU.oauth.implicit = (function (exports) {
 
   const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
 
-  let store = Object.freeze({ state: STATE_INDETERMINATE });
-
-  /*
-   * TODOS:
-   *  - implement logout
-   *  - implement requireAuthentication
-   */
-
   /**
    * @typedef {} ImplicitConfig
    * @prop {string} clientId
@@ -956,8 +921,6 @@ this.BYU.oauth.implicit = (function (exports) {
   async function configure(cfg) {
     const globalConfig = window[GLOBAL_CONFIG_KEY];
 
-    console.log('base', document.baseURI);
-
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
       callbackUrl: `${location.origin}${location.pathname}`,
@@ -971,114 +934,11 @@ this.BYU.oauth.implicit = (function (exports) {
     const provider = new ImplicitGrantProvider(config, window, document);
 
     return provider.startup();
-
-    // await maybeHandleAuthenticationCallback(config);
-    // await maybeForceLogin(config);
-  }
-
-  function startLogin() {
-    const config = getConfig();
-    const csrf = saveLoginToken(randomString$1(), {});
-
-    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${config.clientId}&redirect_uri=${encodeURIComponent(config.callbackUrl)}&scope=openid&state=${csrf}`;
-
-    window.location = loginUrl;
-  }
-
-  function startRefresh() {
-    startLogin();
-  }
-
-  function handleCurrentInfoRequest({ callback }) {
-    callback(store);
-  }
-
-  function startLogout() {
-    const config = getConfig();
-    window.location = 'http://api.byu.edu/logout?redirect_url=' + config.callbackUrl;
-    //https://api.byu.edu/revoke
-
-    //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
-    // const url = `https://api.byu.edu/revoke`;
-
-    // const form = new URLSearchParams();
-    // form.set('token', store.token.bearer);
-    // form.set('client_id', config.clientId);
-    // form.set('token_type_hint', 'access_token');
-
-    // console.log('logout url', url);
-
-    // fetch(url, {
-    //     method: 'POST',
-    //     body: form,
-    //     // headers: {
-    //     //     'Content-Type': 'application/x-www-form-urlencoded'
-    //     // }
-    // }).then(result => {
-    //     console.log('done with logout', result);
-    // });
-  }
-
-  function saveLoginToken(token, pageState) {
-    const config = getConfig();
-    const name = getStorgeName(config.clientId);
-    const value = `${token}.${btoa(JSON.stringify(pageState))}`;
-
-    let type;
-    if (storageAvailable('sessionStorage')) {
-      window.sessionStorage.setItem(name, value);
-      type = TOKEN_STORE_TYPE_SESSION;
-    } else {
-      document.cookie = `${name}=${value};max-age=300`;
-      type = TOKEN_STORE_TYPE_COOKIE;
-    }
-    return type + '.' + token;
-  }
-
-  const TOKEN_STORE_TYPE_SESSION = 's';
-  const TOKEN_STORE_TYPE_COOKIE = 'c';
-
-  function storageAvailable(type) {
-    let storage = '';
-    try {
-      storage = window[type];
-      const testString = '__storage_test__';
-      storage.setItem(testString, testString);
-      storage.removeItem(testString);
-      return true;
-    } catch (e) {
-      return e instanceof DOMException && (
-      // everything except Firefox
-      e.code === 22 ||
-      // Firefox
-      e.code === 1014 ||
-      // test name field too, because code might not be present
-      // everything except Firefox
-      e.name === 'QuotaExceededError' ||
-      // Firefox
-      e.name === 'NS_ERROR_DOM_QUOTA_REACHED') &&
-      // acknowledge QuotaExceededError only if there's something already stored
-      storage.length !== 0;
-    }
-  }
-
-  function randomString$1() {
-    let idArray = new Uint32Array(3);
-    const crypto = window.crypto || window.msCrypto;
-    crypto.getRandomValues(idArray);
-
-    return idArray.reduce(function (str, cur) {
-      return str + cur.toString(16);
-    }, '');
   }
 
   exports.DEFAULT_ISSUER = DEFAULT_ISSUER;
   exports.GLOBAL_CONFIG_KEY = GLOBAL_CONFIG_KEY;
   exports.configure = configure;
-  exports.startLogin = startLogin;
-  exports.startRefresh = startRefresh;
-  exports.handleCurrentInfoRequest = handleCurrentInfoRequest;
-  exports.startLogout = startLogout;
 
   return exports;
 

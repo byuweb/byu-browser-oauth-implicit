@@ -3,7 +3,7 @@ import cjs from 'rollup-plugin-commonjs';
 import nodeResolve from 'rollup-plugin-node-resolve';
 import mini from 'rollup-plugin-babel-minify';
 
-const input = 'src/implicit-grant.js';
+const input = 'src/implicit-grant.mjs';
 const out = 'dist/implicit-grant';
 
 function plugins(...extras) {
@@ -14,7 +14,7 @@ export default [
   {
     input,
     output: {
-      file: `${out}.js`,
+      file: `${out}.mjs`,
       format: 'es',
       sourcemap: true,
     },
@@ -23,7 +23,7 @@ export default [
   {
     input,
     output: {
-      file: `${out}.min.js`,
+      file: `${out}.min.mjs`,
       format: 'es',
       sourcemap: true,
     },

@@ -14,7 +14,7 @@
     "watch-test": "karma start --browsers ChromeHeadless"
   },
   "dependencies": {
-    "@byuweb/browser-oauth": "^0.2.0",
+    "@byuweb/browser-oauth": "^0.3.1",
     "local-storage-fallback": "^4.1.0"
   },
   "devDependencies": {
