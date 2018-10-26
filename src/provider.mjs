@@ -18,7 +18,7 @@
 
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 import {parseHash} from './url.mjs';
-import {StorageHandler} from "./local-storage";
+import {StorageHandler} from "./local-storage.mjs";
 
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
@@ -42,6 +42,7 @@ export class ImplicitGrantProvider {
     this.store = Object.freeze({
       state, user, token, error
     });
+    this._maybeUpdateStoredSession(state, user, token);
     _dispatchEvent(this, authn.EVENT_STATE_CHANGE, this.store)
   }
 
@@ -66,6 +67,8 @@ export class ImplicitGrantProvider {
         console.error('OAuth Error', err);
         this._changeState(authn.STATE_ERROR, undefined, undefined, err);
       }
+    } if (this.hasStoredSession()) { 
+      this._updateStateFromStorage();
     } else {
       this._changeState(authn.STATE_UNAUTHENTICATED);
     }
@@ -88,6 +91,10 @@ export class ImplicitGrantProvider {
     }
 
     return hash.has('access_token') || hash.has('error');
+  }
+
+  hasStoredSession() {
+    return !!this.storageHandler.getSessionState(this.config.clientId);
   }
 
   shutdown() {
@@ -125,6 +132,7 @@ export class ImplicitGrantProvider {
   }
 
   startLogout() {
+    this.storageHandler.clearSessionState(this.config.clientId);
     const redirectUrl = this.config.callbackUrl;
     this.window.location = 'http://api.byu.edu/logout?redirect_url=' + redirectUrl;
     //https://api.byu.edu/revoke
@@ -159,6 +167,64 @@ export class ImplicitGrantProvider {
       callback(this.store);
     }
   }
+
+  _updateStateFromStorage() {
+    const serialized = this.storageHandler.getSessionState(this.config.clientId);
+    if (!serialized) {
+      this._changeState(authn.STATE_UNAUTHENTICATED);
+      return;
+    }
+    const {user, token} = deserializeSessionState(serialized);
+    if (!user || !token) {
+      this._changeState(authn.STATE_UNAUTHENTICATED);
+    } else if (token.expiresAt > new Date()) {
+      this._changeState(authn.STATE_AUTHENTICATED, user, token);
+    } else {
+      this._changeState(authn.STATE_EXPIRED, user, token);
+    }
+  }
+
+  _maybeUpdateStoredSession(state, user, token) {
+    if (state === authn.STATE_UNAUTHENTICATED) {
+      this.storageHandler.clearSessionState(this.config.clientId);
+    } else if (!!user && !!token) {
+      const serialized = serializeSessionState(user, token);
+      this.storageHandler.saveSessionState(this.config.clientId, serialized);
+    }
+  }
+}
+
+function serializeSessionState(user, token) {
+  const grouped = groupClaimPrefixes(token.rawUserInfo);
+
+  const smallerUserInfo = {
+    ro: grouped[CLAIMS_PREFIX_RESOURCE_OWNER],
+    cl: grouped[CLAIMS_PREFIX_CLIENT],
+    wso2: grouped[CLAIMS_PREFIX_WSO2],
+    o: grouped.other,
+  };
+
+  return {
+    ui: smallerUserInfo,
+    at: token.bearer,
+    ah: token.authorizationHeader,
+    ea: token.expiresAt.getTime()
+  };
+}
+
+function deserializeSessionState(state) {
+  const groupedUserInfo = {
+    [CLAIMS_PREFIX_RESOURCE_OWNER]: state.ui.ro,
+    [CLAIMS_PREFIX_CLIENT]: state.ui.cl,
+    [CLAIMS_PREFIX_WSO2]: state.ui.wso2,
+    other: state.ui.o,
+  }
+  const userInfo = ungroupClaimPrefixes(groupedUserInfo);
+
+  const user = _processUserInfo(userInfo);
+  const expiresAt = new Date(state.ea);
+  const token = _processTokenInfo(userInfo, state.at, expiresAt, state.at);
+  return {user, token};
 }
 
 function _listenTo(provider, event, listener) {
@@ -257,10 +323,45 @@ async function _fetchUserInfo(authHeader) {
   return await resp.json();
 }
 
-
 const CLAIMS_PREFIX_RESOURCE_OWNER = 'http://byu.edu/claims/resourceowner_';
 const CLAIMS_PREFIX_CLIENT = 'http://byu.edu/claims/client_';
 const CLAIMS_PREFIX_WSO2 = 'http://wso2.org/claims/';
+
+const CLAIMS_KNOWN_PREFIXES = [CLAIMS_PREFIX_CLIENT, CLAIMS_PREFIX_RESOURCE_OWNER, CLAIMS_PREFIX_WSO2];
+
+function groupClaimPrefixes(userInfo) {
+  const grouped = {
+    other: {}
+  };
+  for (const prefix of CLAIMS_KNOWN_PREFIXES) {
+    grouped[prefix] = {};
+  }
+  for (const key of Object.keys(userInfo)) {
+    const value = userInfo[key];
+    const prefix = CLAIMS_KNOWN_PREFIXES.find(it => key.startsWith(it));
+    if (prefix) {
+        grouped[prefix][key.substr(prefix.length)] = value;
+    } else {
+      grouped.other[key] = value;
+    }
+  }
+  return grouped;
+}
+
+function ungroupClaimPrefixes(grouped) {
+  const result = {};
+  for (const groupKey of CLAIMS_KNOWN_PREFIXES) {
+    const group = grouped[groupKey];
+    if (!group) continue;
+    for (const key of Object.keys(group)) {
+      result[groupKey + key] = group[key];
+    }
+  }
+  for (const other of Object.keys(grouped.other)) {
+    result[other] = grouped.other[other];
+  }
+  return result;
+}
 
 function getClaims(userInfo, prefix) {
   return Object.keys(userInfo).filter(k => k.startsWith(prefix))

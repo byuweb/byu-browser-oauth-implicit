@@ -3,6 +3,5 @@
     ["modern-browsers", {
       "modules": false
     }]
-  ],
-  "plugins": ["external-helpers"]
+  ]
 }

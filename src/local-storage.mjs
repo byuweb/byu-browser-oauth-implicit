@@ -36,9 +36,30 @@ export class StorageHandler {
   clearOAuthState(clientId) {
     storage.removeItem(getKey(clientId));
   }
+
+  saveSessionState(clientId, state) {
+    storage.setItem(getSessionKey(clientId), JSON.stringify(state));
+  }
+  
+  getSessionState(clientId) {
+    const key = getSessionKey(clientId);
+    const stored = storage.getItem(key);
+    if (!stored) {
+      return null;
+    }
+    return JSON.parse(stored);
+  }
+  
+  clearSessionState(clientId) {
+    storage.removeItem(getSessionKey(clientId));
+  }
 }
 
 function getKey(clientId) {
   return 'oauth-state-' + encodeURIComponent(clientId);
+}
+
+function getSessionKey(clientId) {
+  return getKey(clientId) + '-active-session';
 }
 
