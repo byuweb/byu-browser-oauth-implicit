@@ -15,7 +15,7 @@ export default [
   {
     input,
     output: {
-      file: `${out}.mjs`,
+      file: `${out}.js`,
       format: 'es',
       sourcemap: true,
     },
@@ -24,7 +24,7 @@ export default [
   {
     input,
     output: {
-      file: `${out}.min.mjs`,
+      file: `${out}.min.js`,
       format: 'es',
       sourcemap: true,
     },

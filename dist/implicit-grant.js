@@ -1129,4 +1129,4 @@ async function configure(cfg) {
 }
 
 export { DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, configure };
-//# sourceMappingURL=implicit-grant.mjs.map
+//# sourceMappingURL=implicit-grant.js.map
