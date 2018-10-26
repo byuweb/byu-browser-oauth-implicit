@@ -13,7 +13,6 @@ this.BYU.oauth.implicit = (function (exports) {
   const STATE_UNAUTHENTICATED = 'unauthenticated';
   const STATE_AUTHENTICATED = 'authenticated';
   const STATE_AUTHENTICATING = 'authenticating';
-  const STATE_EXPIRED = 'expired';
   const STATE_ERROR = 'error';
 
   /*
@@ -801,7 +800,7 @@ this.BYU.oauth.implicit = (function (exports) {
       } else if (token.expiresAt > new Date()) {
         this._changeState(STATE_AUTHENTICATED, user, token);
       } else {
-        this._changeState(STATE_EXPIRED, user, token);
+        this._changeState(STATE_UNAUTHENTICATED);
       }
     }
 

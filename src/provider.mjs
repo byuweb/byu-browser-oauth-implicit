@@ -180,7 +180,7 @@ export class ImplicitGrantProvider {
     } else if (token.expiresAt > new Date()) {
       this._changeState(authn.STATE_AUTHENTICATED, user, token);
     } else {
-      this._changeState(authn.STATE_EXPIRED, user, token);
+      this._changeState(authn.STATE_UNAUTHENTICATED);
     }
   }
 
