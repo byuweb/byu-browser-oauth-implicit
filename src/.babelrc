@@ -1,0 +1,7 @@
+{
+  "presets": [
+    ["modern-browsers", {
+      "modules": false
+    }]
+  ]
+}

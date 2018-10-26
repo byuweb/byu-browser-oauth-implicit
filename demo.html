@@ -2,67 +2,70 @@
 <html>
 
 <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Implicit Grant Test</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Implicit Grant Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <script>
-        var oauthConfig = {
-            clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca'
-        };
-    </script>
+  <script>
+    window['byu-oauth-implicit-config'] = {
+      clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca',
+      // forceLogin: true,
+      // mode: 'popup',
+      // backgroundRefresh: true
+    };
+  </script>
 
-    <script type="module">
-        // import * as implicit from 'https://dev.cdn.byu.edu/browser-oauth-implicit/latest/implicit-grant.min.js';
-        import * as implicit from './src/implicit-grant.js';
+  <script type="module">
+    import * as implicit from './dist/implicit-grant.mjs';
 
-        implicit.configure(oauthConfig);
-    </script>
-    <script nomodule src="./dist/implicit-grant.nomodule.js"></script>
-    <script nomodule>
-        BYU.oauth.implicit.configure(oauthConfig);
-    </script>
+    implicit.configure();
+  </script>
+  <script nomodule src="./dist/implicit-grant.nomodule.js"></script>
+  <script nomodule>
+    BYU.oauth.implicit.configure();
+  </script>
 
-    <style>
-        .has-user #sign-in {
-            display: none;
-        }
+  <style>
+    .has-user #sign-in {
+      display: none;
+    }
 
-        #name, #sign-out {
-            display: none;
-        }
+    #name, #sign-out {
+      display: none;
+    }
 
-        .has-user #name, .has-user #sign-out {
-            display: block;
-        }
-        
-    </style>
+    .has-user #name, .has-user #sign-out {
+      display: block;
+    }
+
+  </style>
 </head>
 
 <body>
 
-    <button id="sign-in">Sign In</button>
-    
-    <h2 id="name"></h2>
+<button id="sign-in">Sign In</button>
 
-    <button id="sign-out">Sign Out</button>
+<h2 id="name"></h2>
 
-    <script type="module">
-        import * as authn from './node_modules/@byuweb/browser-oauth/byu-browser-oauth.js';
-        document.getElementById('sign-in')
-            .addEventListener('click', () => authn.login(), false);
-        document.getElementById('sign-out')
-            .addEventListener('click', () => authn.logout(), false);
+<button id="sign-out">Sign Out</button>
 
-        new authn.AuthenticationObserver(({state, token, user, error}) => {
-            console.log('authn observer', state, token, user, error);
-            if (state === authn.STATE_AUTHENTICATED) {
-                document.body.classList.add('has-user');
-                document.getElementById('name').innerText = user.name.displayName;
-            }
-        });
-    </script>
+<script type="module">
+  import * as authn from './node_modules/@byuweb/browser-oauth/byu-browser-oauth.mjs';
+
+  document.getElementById('sign-in')
+    .addEventListener('click', () => authn.login(), false);
+  document.getElementById('sign-out')
+    .addEventListener('click', () => authn.logout(), false);
+
+  new authn.AuthenticationObserver(({state, token, user, error}) => {
+    console.log('authn observer', state, token, user, error);
+    if (state === authn.STATE_AUTHENTICATED) {
+      document.body.classList.add('has-user');
+      document.getElementById('name').innerText = user.name.displayName;
+    }
+  });
+</script>
 </body>
 
 </html>
