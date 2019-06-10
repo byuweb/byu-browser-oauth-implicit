@@ -3,6 +3,8 @@ OAuth Implicit Grant provider for byu-browser-oauth
 
 # Usage
 
+Add the following to the top of index.html in your project.
+
 ```html
 <head>
     <script>
@@ -23,3 +25,9 @@ OAuth Implicit Grant provider for byu-browser-oauth
 </head>
 
 ```
+1. Go to api.byu.edu/publisher and create/publish your API
+2. Go to api.byu.edu/store and create two applications (one for dev and one for prod).
+3. subscribe both of them to your newly created API and to openid-userinfo - v1
+4. generate a sandbox key for the dev application and a production key for the prod application
+
+To implement an observer in your project for this go to https://github.com/byuweb/byu-browser-oauth and follow the example instructions there. 
