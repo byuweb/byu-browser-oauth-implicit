@@ -47,7 +47,7 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   function unwrapExports (x) {
-  	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x.default : x;
+  	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
   }
 
   function createCommonjsModule(fn, module) {
@@ -620,6 +620,8 @@ this.BYU.oauth.implicit = (function (exports) {
    */
   const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
+  const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required';
+  const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed';
   class ImplicitGrantProvider {
     constructor(config, window, document, storageHandler = new StorageHandler()) {
       this.config = config;
@@ -645,7 +647,30 @@ this.BYU.oauth.implicit = (function (exports) {
 
       this._maybeUpdateStoredSession(state, user, token);
 
-      _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
+      _dispatchEvent(this, EVENT_STATE_CHANGE, this.store); // If this is a popup
+
+
+      if (this.window.opener) {
+        this.window.opener.document.dispatchEvent(new CustomEvent('byu-browser-oauth-state-changed', {
+          detail: {
+            state: STATE_AUTHENTICATED,
+            token,
+            user
+          }
+        }));
+        this.window.close();
+      }
+
+      this._checkRefresh(token.expiresAt.getTime()); // If we're inside the "refresh" iframe,
+      // then delete now that authentication
+      // is complete
+
+
+      const iframe = parent.document.getElementById('byu-oauth-implicit-grant-refresh-iframe');
+
+      if (iframe) {
+        iframe.parentNode.removeChild(iframe);
+      }
     }
 
     async startup() {
@@ -680,6 +705,28 @@ this.BYU.oauth.implicit = (function (exports) {
       } else {
         this._changeState(STATE_UNAUTHENTICATED);
       }
+    }
+
+    _checkRefresh(expirationTimeInMs) {
+      var _this = this;
+
+      // Simply using setTimeout for an hour in the future
+      // doesn't work; setTimeout isn't that precise over that long of a period.
+      // So re-check every five seconds until we're past the expiration time
+      const expiresInMs = expirationTimeInMs - Date.now();
+
+      if (expiresInMs < 0 || expiresInMs > 3300000) {
+        // If we've expired OR if the WSO2 five-minute grace period was not added, then trigger a refresh.
+        // Wait an extra 5 seconds to avoid WSO2 clock skew problems
+        // Existing token *should* have a five-minute grace period after expiration:
+        // a new request will generate a new token, but the old token should still
+        // work during that grace period
+        return setTimeout(IG_STATE_REFRESH_REQUIRED, 5000);
+      }
+
+      setTimeout(function () {
+        return _this._checkRefresh(expirationTimeInMs);
+      }, 5000);
     }
 
     get _location() {
@@ -731,7 +778,9 @@ this.BYU.oauth.implicit = (function (exports) {
       _unlistenTo(this, EVENT_CURRENT_INFO_REQUESTED);
     }
 
-    startLogin() {
+    startLogin(displayType = 'window') {
+      var _this2 = this;
+
       console.log('starting login', this);
       const {
         clientId,
@@ -743,6 +792,43 @@ this.BYU.oauth.implicit = (function (exports) {
 
       this.storageHandler.saveOAuthState(this.config.clientId, storedState);
       const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+
+      if (displayType === 'iframe') {
+        let iframe = document.getElementById('byu-oauth-implicit-grant-refresh-iframe');
+
+        if (iframe) {
+          iframe.parentNode.removeChild(iframe);
+        }
+
+        iframe = document.createElement('iframe');
+
+        iframe.onload = function () {
+          let html = null;
+
+          try {
+            html = iframe.contentWindow.document.body.innerHTML;
+          } catch (err) {// intentional do-nothing
+          }
+
+          if (html === null) {
+            // Hidden-frame refresh failed. Remove frame and
+            // report problem
+            iframe.parentNode.removeChild(iframe);
+
+            _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+          }
+        };
+
+        iframe.id = 'byu-oauth-implicit-grant-refresh-iframe';
+        iframe.src = loginUrl;
+        iframe.style = 'display:none';
+        document.body.appendChild(iframe);
+        return;
+      } else if (displayType === 'popup') {
+        this.window.open(loginUrl);
+        return;
+      }
+
       console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
       this.window.location = loginUrl;
     }
@@ -769,8 +855,8 @@ this.BYU.oauth.implicit = (function (exports) {
       // });
     }
 
-    startRefresh() {
-      this.startLogin();
+    startRefresh(displayType = 'window') {
+      this.startLogin(displayType);
     }
 
     handleCurrentInfoRequest({
@@ -1121,7 +1207,8 @@ this.BYU.oauth.implicit = (function (exports) {
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
       callbackUrl: `${location.origin}${location.pathname}`,
-      requireAuthentication: false
+      requireAuthentication: false,
+      displayType: 'window'
     }, globalConfig, cfg);
 
     if (!config.clientId) {
