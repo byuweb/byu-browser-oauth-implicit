@@ -65,15 +65,6 @@ export class ImplicitGrantProvider {
           this.storageHandler
         );
         this._changeState(state, user, token, error);
-        if (window.opener) {
-          window.opener.document.dispatchEvent(
-            new CustomEvent('byu-browser-oauth-state-changed', {
-              detail: { state, token, user }
-            })
-          )
-          window.close()
-        }
-        this._checkRefresh(token.expiresAt.getTime())
       } catch (err) {
         console.error('OAuth Error', err);
         this._changeState(authn.STATE_ERROR, undefined, undefined, err);
@@ -146,7 +137,7 @@ export class ImplicitGrantProvider {
     _unlistenTo(this, authn.EVENT_CURRENT_INFO_REQUESTED);
   }
 
-  startLogin() {
+  startLogin(displayType = 'iframe') {
     console.log('starting login', this);
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
@@ -155,6 +146,44 @@ export class ImplicitGrantProvider {
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+
+    if (displayType === 'iframe') {
+      const csrf = this._saveLoginToken('REFRESH-' + randomString(), {})
+      const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${
+        config.clientId
+        }&redirect_uri=${encodeURIComponent(
+        config.callbackUrl
+      )}&scope=openid&state=${csrf}`
+
+      let iframe = document.getElementById(
+        'byu-oauth-implicit-grant-refresh-iframe'
+      )
+      if (iframe) {
+        iframe.parentNode.removeChild(iframe)
+      }
+      iframe = document.createElement('iframe')
+      iframe.onload = () => {
+        let html = null
+        try {
+          html = iframe.contentWindow.document.body.innerHTML
+        } catch (err) {
+          // intentional do-nothing
+        }
+        if (html === null) {
+          // Hidden-frame refresh failed. Remove frame and
+          // report problem
+          iframe.parentNode.removeChild(iframe)
+          this._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null)
+        }
+      }
+      iframe.id = 'byu-oauth-implicit-grant-refresh-iframe'
+      iframe.src = loginUrl
+      iframe.style = 'display:none'
+      document.body.appendChild(iframe)
+    } else if (displayType === 'popup') {
+      this.window.open(loginUrl)
+      return
+    }
 
     console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
 
@@ -188,47 +217,8 @@ export class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh(asPopup) {
-    const csrf = this._saveLoginToken('REFRESH-' + randomString(), {})
-    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${
-      config.clientId
-      }&redirect_uri=${encodeURIComponent(
-      config.callbackUrl
-    )}&scope=openid&state=${csrf}`
-
-    asPopup = this.config.asPopup
-
-    if (asPopup) {
-      window.open(loginUrl)
-      return
-    }
-
-    let iframe = document.getElementById(
-      'byu-oauth-implicit-grant-refresh-iframe'
-    )
-    if (iframe) {
-      iframe.parentNode.removeChild(iframe)
-    }
-    iframe = document.createElement('iframe')
-    iframe.onload = () => {
-      let html = null
-      try {
-        html = iframe.contentWindow.document.body.innerHTML
-      } catch (err) {
-        // intentional do-nothing
-      }
-      if (html === null) {
-        // Hidden-frame refresh failed. Remove frame and
-        // report problem
-        iframe.parentNode.removeChild(iframe)
-        this._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null)
-        this.startLogin();
-      }
-    }
-    iframe.id = 'byu-oauth-implicit-grant-refresh-iframe'
-    iframe.src = loginUrl
-    iframe.style = 'display:none'
-    document.body.appendChild(iframe)
+  startRefresh(displayType = 'iframe') {
+    this.startLogin(displayType);
   }
 
   _saveLoginToken (token, pageState) {
@@ -237,10 +227,10 @@ export class ImplicitGrantProvider {
 
     let type
     if (storageAvailable('sessionStorage')) {
-      window.sessionStorage.setItem(name, value)
+      this.window.sessionStorage.setItem(name, value)
       type = TOKEN_STORE_TYPE_SESSION
     } else {
-      document.cookie = `${name}=${value};max-age=300`
+      this.document.cookie = `${name}=${value};max-age=300`
       type = TOKEN_STORE_TYPE_COOKIE
     }
     return type + '.' + token
@@ -369,6 +359,16 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
   const token = _processTokenInfo(userInfo, accessToken, expiresAt, authHeader);
 
   location.hash = '';
+
+  if (this.window.opener) {
+    this.window.opener.document.dispatchEvent(
+      new CustomEvent('byu-browser-oauth-state-changed', {
+        detail: { state, token, user }
+      })
+    )
+    this.window.close()
+  }
+  this._checkRefresh(token.expiresAt.getTime())
 
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
