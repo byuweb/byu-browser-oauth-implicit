@@ -137,7 +137,7 @@ export class ImplicitGrantProvider {
     _unlistenTo(this, authn.EVENT_CURRENT_INFO_REQUESTED);
   }
 
-  startLogin(displayType = 'iframe') {
+  startLogin(displayType = 'window') {
     console.log('starting login', this);
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
@@ -180,6 +180,7 @@ export class ImplicitGrantProvider {
       iframe.src = loginUrl
       iframe.style = 'display:none'
       document.body.appendChild(iframe)
+      return
     } else if (displayType === 'popup') {
       this.window.open(loginUrl)
       return
@@ -217,7 +218,7 @@ export class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh(displayType = 'iframe') {
+  startRefresh(displayType = 'window') {
     this.startLogin(displayType);
   }
 
@@ -363,7 +364,7 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
   if (this.window.opener) {
     this.window.opener.document.dispatchEvent(
       new CustomEvent('byu-browser-oauth-state-changed', {
-        detail: { state, token, user }
+        detail: { state: authn.STATE_AUTHENTICATED, token, user }
       })
     )
     this.window.close()

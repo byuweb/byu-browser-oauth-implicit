@@ -39,7 +39,7 @@ export async function configure(cfg) {
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
     requireAuthentication: false,
-    displayType: 'iframe'
+    displayType: 'window'
   }, globalConfig, cfg);
 
   if (!config.clientId) {
