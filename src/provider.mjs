@@ -21,6 +21,8 @@ import {parseHash} from './url.mjs';
 import {StorageHandler} from "./local-storage.mjs";
 
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
+const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required'
+const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed'
 
 export class ImplicitGrantProvider {
   constructor(config, window, document, storageHandler = new StorageHandler()) {
@@ -63,6 +65,15 @@ export class ImplicitGrantProvider {
           this.storageHandler
         );
         this._changeState(state, user, token, error);
+        if (window.opener) {
+          window.opener.document.dispatchEvent(
+            new CustomEvent('byu-browser-oauth-state-changed', {
+              detail: { state, token, user }
+            })
+          )
+          window.close()
+        }
+        this._checkRefresh(token.expiresAt.getTime())
       } catch (err) {
         console.error('OAuth Error', err);
         this._changeState(authn.STATE_ERROR, undefined, undefined, err);
@@ -72,6 +83,25 @@ export class ImplicitGrantProvider {
     } else {
       this._changeState(authn.STATE_UNAUTHENTICATED);
     }
+  }
+
+  _checkRefresh(expirationTimeInMs) {
+    // Simply using setTimeout for an hour in the future
+    // doesn't work; setTimeout isn't that precise over that long of a period.
+    // So re-check every five seconds until we're past the expiration time
+
+    const expiresInMs = expirationTimeInMs - Date.now()
+
+    if (expiresInMs < 0 || expiresInMs > 3300000) {
+      // If we've expired OR if the WSO2 five-minute grace period was not added, then trigger a refresh.
+      // Wait an extra 5 seconds to avoid WSO2 clock skew problems
+      // Existing token *should* have a five-minute grace period after expiration:
+      // a new request will generate a new token, but the old token should still
+      // work during that grace period
+      return setTimeout(IG_STATE_REFRESH_REQUIRED, 5000)
+    }
+
+    setTimeout(() => this._checkRefresh(expirationTimeInMs), 5000)
   }
 
   get _location() {
@@ -158,8 +188,62 @@ export class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh() {
-    this.startLogin();
+  startRefresh(asPopup) {
+    const csrf = this._saveLoginToken('REFRESH-' + randomString(), {})
+    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${
+      config.clientId
+      }&redirect_uri=${encodeURIComponent(
+      config.callbackUrl
+    )}&scope=openid&state=${csrf}`
+
+    asPopup = this.config.asPopup
+
+    if (asPopup) {
+      window.open(loginUrl)
+      return
+    }
+
+    let iframe = document.getElementById(
+      'byu-oauth-implicit-grant-refresh-iframe'
+    )
+    if (iframe) {
+      iframe.parentNode.removeChild(iframe)
+    }
+    iframe = document.createElement('iframe')
+    iframe.onload = () => {
+      let html = null
+      try {
+        html = iframe.contentWindow.document.body.innerHTML
+      } catch (err) {
+        // intentional do-nothing
+      }
+      if (html === null) {
+        // Hidden-frame refresh failed. Remove frame and
+        // report problem
+        iframe.parentNode.removeChild(iframe)
+        this._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null)
+        this.startLogin();
+      }
+    }
+    iframe.id = 'byu-oauth-implicit-grant-refresh-iframe'
+    iframe.src = loginUrl
+    iframe.style = 'display:none'
+    document.body.appendChild(iframe)
+  }
+
+  _saveLoginToken (token, pageState) {
+    const name = getStorageName(config.clientId)
+    const value = `${token}.${btoa(JSON.stringify(pageState))}`
+
+    let type
+    if (storageAvailable('sessionStorage')) {
+      window.sessionStorage.setItem(name, value)
+      type = TOKEN_STORE_TYPE_SESSION
+    } else {
+      document.cookie = `${name}=${value};max-age=300`
+      type = TOKEN_STORE_TYPE_COOKIE
+    }
+    return type + '.' + token
   }
 
   handleCurrentInfoRequest({callback}) {

@@ -39,6 +39,7 @@ export async function configure(cfg) {
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
     requireAuthentication: false,
+    asPopup: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {
