@@ -46,6 +46,27 @@ export class ImplicitGrantProvider {
     });
     this._maybeUpdateStoredSession(state, user, token);
     _dispatchEvent(this, authn.EVENT_STATE_CHANGE, this.store)
+
+    // If this is a popup
+    if (this.window.opener) {
+      this.window.opener.document.dispatchEvent(
+        new CustomEvent('byu-browser-oauth-state-changed', {
+          detail: { state: authn.STATE_AUTHENTICATED, token, user }
+        })
+      )
+      this.window.close()
+    }
+    this._checkRefresh(token.expiresAt.getTime())
+
+    // If we're inside the "refresh" iframe,
+    // then delete now that authentication
+    // is complete
+    const iframe = parent.document.getElementById(
+      'byu-oauth-implicit-grant-refresh-iframe'
+    )
+    if (iframe) {
+      iframe.parentNode.removeChild(iframe)
+    }
   }
 
   async startup() {
@@ -148,13 +169,6 @@ export class ImplicitGrantProvider {
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
 
     if (displayType === 'iframe') {
-      const csrf = this._saveLoginToken('REFRESH-' + randomString(), {})
-      const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${
-        config.clientId
-        }&redirect_uri=${encodeURIComponent(
-        config.callbackUrl
-      )}&scope=openid&state=${csrf}`
-
       let iframe = document.getElementById(
         'byu-oauth-implicit-grant-refresh-iframe'
       )
@@ -220,21 +234,6 @@ export class ImplicitGrantProvider {
 
   startRefresh(displayType = 'window') {
     this.startLogin(displayType);
-  }
-
-  _saveLoginToken (token, pageState) {
-    const name = getStorageName(config.clientId)
-    const value = `${token}.${btoa(JSON.stringify(pageState))}`
-
-    let type
-    if (storageAvailable('sessionStorage')) {
-      this.window.sessionStorage.setItem(name, value)
-      type = TOKEN_STORE_TYPE_SESSION
-    } else {
-      this.document.cookie = `${name}=${value};max-age=300`
-      type = TOKEN_STORE_TYPE_COOKIE
-    }
-    return type + '.' + token
   }
 
   handleCurrentInfoRequest({callback}) {
@@ -360,16 +359,6 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
   const token = _processTokenInfo(userInfo, accessToken, expiresAt, authHeader);
 
   location.hash = '';
-
-  if (this.window.opener) {
-    this.window.opener.document.dispatchEvent(
-      new CustomEvent('byu-browser-oauth-state-changed', {
-        detail: { state: authn.STATE_AUTHENTICATED, token, user }
-      })
-    )
-    this.window.close()
-  }
-  this._checkRefresh(token.expiresAt.getTime())
 
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
