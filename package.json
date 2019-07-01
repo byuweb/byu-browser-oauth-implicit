@@ -1,6 +1,6 @@
 {
   "name": "@byuweb/browser-oauth-implicit",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Implicit grant provider for BYU browser oauth",
   "main": "dist/implicit-grant.js",
   "repository": "git@github.com:byuweb/byu-browser-oauth-implicit.git",
