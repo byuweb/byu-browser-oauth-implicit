@@ -65,7 +65,7 @@ export class ImplicitGrantProvider {
 
       if (state === authn.STATE_AUTHENTICATED) {
         // delete self now that authentication is complete
-        //this.window.close()
+        this.window.close()
       }
 
       return
