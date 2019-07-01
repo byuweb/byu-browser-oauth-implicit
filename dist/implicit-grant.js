@@ -613,6 +613,7 @@ function getSessionKey(clientId) {
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
+const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
 const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required';
@@ -640,31 +641,50 @@ class ImplicitGrantProvider {
       error
     });
 
-    this._maybeUpdateStoredSession(state, user, token);
+    _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
+  } // Separate state change listener, because state change events
+  // might come from child iframe/popup window
 
-    _dispatchEvent(this, EVENT_STATE_CHANGE, this.store); // If this is a popup
 
-
+  handleStateChange({
+    state,
+    user,
+    token
+  }) {
+    // If this is a popup
     if (this.window.opener) {
-      this.window.opener.document.dispatchEvent(new CustomEvent('byu-browser-oauth-state-changed', {
+      this.window.opener.document.dispatchEvent(new CustomEvent(EVENT_STATE_CHANGE, {
         detail: {
-          state: STATE_AUTHENTICATED,
+          state,
           token,
           user
         }
       }));
-      this.window.close();
-    }
 
-    this._checkRefresh(token.expiresAt.getTime()); // If we're inside the "refresh" iframe,
+      if (state === STATE_AUTHENTICATED) {
+        this.window.close();
+      }
+
+      return;
+    } // If we're inside the "refresh" iframe,
     // then delete now that authentication
     // is complete
 
 
-    const iframe = parent.document.getElementById('byu-oauth-implicit-grant-refresh-iframe');
+    const iframe = parent.document.getElementById(CHILD_IFRAME_ID);
 
     if (iframe) {
-      iframe.parentNode.removeChild(iframe);
+      if (state === STATE_AUTHENTICATED) {
+        iframe.parentNode.removeChild(iframe);
+      }
+
+      return;
+    }
+
+    this._maybeUpdateStoredSession(state, user, token);
+
+    if (state === STATE_AUTHENTICATED) {
+      this._checkRefresh(token.expiresAt.getTime());
     }
   }
 
@@ -716,7 +736,17 @@ class ImplicitGrantProvider {
       // Existing token *should* have a five-minute grace period after expiration:
       // a new request will generate a new token, but the old token should still
       // work during that grace period
-      return setTimeout(IG_STATE_REFRESH_REQUIRED, 5000);
+      let fn = function fn() {
+        return _this.startRefresh('iframe');
+      };
+
+      if (this.config.doNotAutoRefreshOnTimeout) {
+        fn = function fn() {
+          return _this._changeState(IG_STATE_REFRESH_REQUIRED);
+        };
+      }
+
+      return setTimeout(fn, 5000);
     }
 
     setTimeout(function () {
@@ -761,6 +791,8 @@ class ImplicitGrantProvider {
     _listenTo(this, EVENT_REFRESH_REQUESTED, this.startRefresh);
 
     _listenTo(this, EVENT_CURRENT_INFO_REQUESTED, this.handleCurrentInfoRequest);
+
+    _listenTo(this, EVENT_STATE_CHANGE, this.handleStateChange);
   }
 
   unlisten() {
@@ -771,6 +803,8 @@ class ImplicitGrantProvider {
     _unlistenTo(this, EVENT_REFRESH_REQUESTED);
 
     _unlistenTo(this, EVENT_CURRENT_INFO_REQUESTED);
+
+    _unlistenTo(this, EVENT_STATE_CHANGE);
   }
 
   startLogin(displayType = 'window') {
@@ -788,44 +822,45 @@ class ImplicitGrantProvider {
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
 
-    if (displayType === 'iframe') {
-      let iframe = document.getElementById('byu-oauth-implicit-grant-refresh-iframe');
-
-      if (iframe) {
-        iframe.parentNode.removeChild(iframe);
-      }
-
-      iframe = document.createElement('iframe');
-
-      iframe.onload = function () {
-        let html = null;
-
-        try {
-          html = iframe.contentWindow.document.body.innerHTML;
-        } catch (err) {// intentional do-nothing
-        }
-
-        if (html === null) {
-          // Hidden-frame refresh failed. Remove frame and
-          // report problem
-          iframe.parentNode.removeChild(iframe);
-
-          _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
-        }
-      };
-
-      iframe.id = 'byu-oauth-implicit-grant-refresh-iframe';
-      iframe.src = loginUrl;
-      iframe.style = 'display:none';
-      document.body.appendChild(iframe);
+    if (!displayType || displayType == 'window') {
+      console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
+      this.window.location = loginUrl;
       return;
     } else if (displayType === 'popup') {
       this.window.open(loginUrl);
       return;
+    } // last option: displayType == 'iframe'
+
+
+    let iframe = document.getElementById(CHILD_IFRAME_ID);
+
+    if (iframe) {
+      iframe.parentNode.removeChild(iframe);
     }
 
-    console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
-    this.window.location = loginUrl;
+    iframe = document.createElement('iframe');
+
+    iframe.onload = function () {
+      let html = null;
+
+      try {
+        html = iframe.contentWindow.document.body.innerHTML;
+      } catch (err) {// intentional do-nothing
+      }
+
+      if (html === null) {
+        // Hidden-frame refresh failed. Remove frame and
+        // report problem
+        iframe.parentNode.removeChild(iframe);
+
+        _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+      }
+    };
+
+    iframe.id = CHILD_IFRAME_ID;
+    iframe.src = loginUrl;
+    iframe.style = 'display:none';
+    document.body.appendChild(iframe);
   }
 
   startLogout() {
@@ -1202,7 +1237,7 @@ async function configure(cfg) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    requireAuthentication: false,
+    doNotAutoRefreshOnTimeout: false,
     displayType: 'window'
   }, globalConfig, cfg);
 
