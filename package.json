@@ -1,10 +1,15 @@
 {
   "name": "@byuweb/browser-oauth-implicit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Implicit grant provider for BYU browser oauth",
   "main": "index.js",
   "repository": "git@github.com:byuweb/byu-browser-oauth-implicit.git",
   "author": "BYU Office of Information Technology",
+  "contributors": [
+    "Glen Sawyer <glen_sawyer@byu.edu>",
+    "Joseph Moore <joseph_moore@byu.edu>",
+    "Blake Morgan <blake_morgan@byu.edu>"
+  ],
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
