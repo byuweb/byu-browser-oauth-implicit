@@ -38,7 +38,7 @@ export async function configure(cfg) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    requireAuthentication: false,
+    doNotAutoRefreshOnTimeout: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {

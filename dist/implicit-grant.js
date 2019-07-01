@@ -42,7 +42,7 @@ function parseHash(hash) {
 }
 
 function unwrapExports (x) {
-	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x.default : x;
+	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
 
 function createCommonjsModule(fn, module) {
@@ -613,8 +613,11 @@ function getSessionKey(clientId) {
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
+const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
+const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required';
+const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed';
 class ImplicitGrantProvider {
   constructor(config, window, document, storageHandler = new StorageHandler()) {
     this.config = config;
@@ -638,9 +641,66 @@ class ImplicitGrantProvider {
       error
     });
 
+    _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
+  } // Separate state change listener, because state change events
+  // might come from child iframe/popup window
+
+
+  handleStateChange({
+    state,
+    user,
+    token,
+    source
+  }) {
+    // If this is a popup
+    if (this.window.opener) {
+      // We're inside a child re-authentication popup
+      if (source) {
+        // event was triggered by a child, so ignore since we're inside a child
+        return;
+      } // Pass event along to parent
+
+
+      _dispatchEvent(this.window.opener, EVENT_STATE_CHANGE, {
+        state,
+        token,
+        user,
+        source: 'popup'
+      });
+
+      return;
+    } // If we're inside the "refresh" iframe
+
+
+    const iframe = parent.document.getElementById(CHILD_IFRAME_ID);
+
+    if (iframe) {
+      if (source) {
+        // event was triggered by a child, so ignore since we're inside a child
+        return;
+      } // Pass event along to parent
+
+
+      _dispatchEvent(parent, EVENT_STATE_CHANGE, {
+        state,
+        token,
+        user,
+        source: 'iframe'
+      });
+
+      if (state === STATE_AUTHENTICATED) {
+        // delete self now that authentication is complete
+        iframe.parentNode.removeChild(iframe);
+      }
+
+      return;
+    }
+
     this._maybeUpdateStoredSession(state, user, token);
 
-    _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
+    if (state === STATE_AUTHENTICATED) {
+      this._checkRefresh(token.expiresAt.getTime());
+    }
   }
 
   async startup() {
@@ -675,6 +735,38 @@ class ImplicitGrantProvider {
     } else {
       this._changeState(STATE_UNAUTHENTICATED);
     }
+  }
+
+  _checkRefresh(expirationTimeInMs) {
+    var _this = this;
+
+    // Simply using setTimeout for an hour in the future
+    // doesn't work; setTimeout isn't that precise over that long of a period.
+    // So re-check every five seconds until we're past the expiration time
+    const expiresInMs = expirationTimeInMs - Date.now();
+
+    if (expiresInMs < 0 || expiresInMs > 3300000) {
+      // If we've expired OR if the WSO2 five-minute grace period was not added, then trigger a refresh.
+      // Wait an extra 5 seconds to avoid WSO2 clock skew problems
+      // Existing token *should* have a five-minute grace period after expiration:
+      // a new request will generate a new token, but the old token should still
+      // work during that grace period
+      let fn = function fn() {
+        return _this.startRefresh('iframe');
+      };
+
+      if (this.config.doNotAutoRefreshOnTimeout) {
+        fn = function fn() {
+          return _this._changeState(IG_STATE_REFRESH_REQUIRED);
+        };
+      }
+
+      return setTimeout(fn, 5000);
+    }
+
+    setTimeout(function () {
+      return _this._checkRefresh(expirationTimeInMs);
+    }, 5000);
   }
 
   get _location() {
@@ -714,6 +806,8 @@ class ImplicitGrantProvider {
     _listenTo(this, EVENT_REFRESH_REQUESTED, this.startRefresh);
 
     _listenTo(this, EVENT_CURRENT_INFO_REQUESTED, this.handleCurrentInfoRequest);
+
+    _listenTo(this, EVENT_STATE_CHANGE, this.handleStateChange);
   }
 
   unlisten() {
@@ -724,9 +818,13 @@ class ImplicitGrantProvider {
     _unlistenTo(this, EVENT_REFRESH_REQUESTED);
 
     _unlistenTo(this, EVENT_CURRENT_INFO_REQUESTED);
+
+    _unlistenTo(this, EVENT_STATE_CHANGE);
   }
 
-  startLogin() {
+  startLogin(displayType = 'window') {
+    var _this2 = this;
+
     console.log('starting login', this);
     const {
       clientId,
@@ -738,8 +836,46 @@ class ImplicitGrantProvider {
 
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
     const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
-    console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
-    this.window.location = loginUrl;
+
+    if (!displayType || displayType == 'window') {
+      console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
+      this.window.location = loginUrl;
+      return;
+    } else if (displayType === 'popup') {
+      this.window.open(loginUrl);
+      return;
+    } // last option: displayType == 'iframe'
+
+
+    let iframe = document.getElementById(CHILD_IFRAME_ID);
+
+    if (iframe) {
+      iframe.parentNode.removeChild(iframe);
+    }
+
+    iframe = document.createElement('iframe');
+
+    iframe.onload = function () {
+      let html = null;
+
+      try {
+        html = iframe.contentWindow.document.body.innerHTML;
+      } catch (err) {// intentional do-nothing
+      }
+
+      if (html === null) {
+        // Hidden-frame refresh failed. Remove frame and
+        // report problem
+        iframe.parentNode.removeChild(iframe);
+
+        _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+      }
+    };
+
+    iframe.id = CHILD_IFRAME_ID;
+    iframe.src = loginUrl;
+    iframe.style = 'display:none';
+    document.body.appendChild(iframe);
   }
 
   startLogout() {
@@ -764,8 +900,8 @@ class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh() {
-    this.startLogin();
+  startRefresh(displayType = 'iframe') {
+    this.startLogin(displayType);
   }
 
   handleCurrentInfoRequest({
@@ -839,7 +975,7 @@ function deserializeSessionState(state) {
 
   const expiresAt = new Date(state.ea);
 
-  const token = _processTokenInfo(userInfo, state.at, expiresAt, state.at);
+  const token = _processTokenInfo(userInfo, state.at, expiresAt, `Bearer ${state.at}`);
 
   return {
     user,
@@ -1116,7 +1252,7 @@ async function configure(cfg) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    requireAuthentication: false
+    doNotAutoRefreshOnTimeout: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {
