@@ -654,32 +654,47 @@ this.BYU.oauth.implicit = (function (exports) {
     handleStateChange({
       state,
       user,
-      token
+      token,
+      source
     }) {
       // If this is a popup
       if (this.window.opener) {
-        this.window.opener.document.dispatchEvent(new CustomEvent(EVENT_STATE_CHANGE, {
-          detail: {
-            state,
-            token,
-            user
-          }
-        }));
+        // We're inside a child re-authentication popup
+        if (source) {
+          // event was triggered by a child, so ignore since we're inside a child
+          return;
+        } // Pass event along to parent
 
-        if (state === STATE_AUTHENTICATED) {
-          this.window.close();
-        }
+
+        _dispatchEvent(this.window.opener, EVENT_STATE_CHANGE, {
+          state,
+          token,
+          user,
+          source: 'popup'
+        });
 
         return;
-      } // If we're inside the "refresh" iframe,
-      // then delete now that authentication
-      // is complete
+      } // If we're inside the "refresh" iframe
 
 
       const iframe = parent.document.getElementById(CHILD_IFRAME_ID);
 
       if (iframe) {
+        if (source) {
+          // event was triggered by a child, so ignore since we're inside a child
+          return;
+        } // Pass event along to parent
+
+
+        _dispatchEvent(parent, EVENT_STATE_CHANGE, {
+          state,
+          token,
+          user,
+          source: 'iframe'
+        });
+
         if (state === STATE_AUTHENTICATED) {
+          // delete self now that authentication is complete
           iframe.parentNode.removeChild(iframe);
         }
 
@@ -890,7 +905,7 @@ this.BYU.oauth.implicit = (function (exports) {
       // });
     }
 
-    startRefresh(displayType = 'window') {
+    startRefresh(displayType = 'iframe') {
       this.startLogin(displayType);
     }
 
@@ -965,7 +980,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
     const expiresAt = new Date(state.ea);
 
-    const token = _processTokenInfo(userInfo, state.at, expiresAt, state.at);
+    const token = _processTokenInfo(userInfo, state.at, expiresAt, `Bearer ${state.at}`);
 
     return {
       user,
@@ -1242,8 +1257,7 @@ this.BYU.oauth.implicit = (function (exports) {
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
       callbackUrl: `${location.origin}${location.pathname}`,
-      doNotAutoRefreshOnTimeout: false,
-      displayType: 'window'
+      doNotAutoRefreshOnTimeout: false
     }, globalConfig, cfg);
 
     if (!config.clientId) {

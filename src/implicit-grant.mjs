@@ -38,8 +38,7 @@ export async function configure(cfg) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    doNotAutoRefreshOnTimeout: false,
-    displayType: 'window'
+    doNotAutoRefreshOnTimeout: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {

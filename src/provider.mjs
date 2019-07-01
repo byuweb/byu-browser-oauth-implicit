@@ -50,28 +50,40 @@ export class ImplicitGrantProvider {
 
   // Separate state change listener, because state change events
   // might come from child iframe/popup window
-  handleStateChange({ state, user, token }) {
+  handleStateChange({ state, user, token, source }) {
     // If this is a popup
     if (this.window.opener) {
-      this.window.opener.document.dispatchEvent(
-        new CustomEvent(authn.EVENT_STATE_CHANGE, {
-          detail: { state, token, user }
-        })
-      )
+      // We're inside a child re-authentication popup
+
+      if (source) {
+        // event was triggered by a child, so ignore since we're inside a child
+        return
+      }
+
+      // Pass event along to parent
+      _dispatchEvent(this.window.opener, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'popup' })
 
       if (state === authn.STATE_AUTHENTICATED) {
-        this.window.close()
+        // delete self now that authentication is complete
+        //this.window.close()
       }
 
       return
     }
 
-    // If we're inside the "refresh" iframe,
-    // then delete now that authentication
-    // is complete
+    // If we're inside the "refresh" iframe
     const iframe = parent.document.getElementById(CHILD_IFRAME_ID)
     if (iframe) {
+      if (source) {
+        // event was triggered by a child, so ignore since we're inside a child
+        return
+      }
+
+      // Pass event along to parent
+      _dispatchEvent(parent, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'iframe' })
+
       if (state === authn.STATE_AUTHENTICATED) {
+        // delete self now that authentication is complete
         iframe.parentNode.removeChild(iframe)
       }
 
@@ -252,7 +264,7 @@ export class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh(displayType = 'window') {
+  startRefresh(displayType = 'iframe') {
     this.startLogin(displayType);
   }
 
@@ -317,7 +329,7 @@ function deserializeSessionState(state) {
 
   const user = _processUserInfo(userInfo);
   const expiresAt = new Date(state.ea);
-  const token = _processTokenInfo(userInfo, state.at, expiresAt, state.at);
+  const token = _processTokenInfo(userInfo, state.at, expiresAt, `Bearer ${state.at}`);
   return {user, token};
 }
 
