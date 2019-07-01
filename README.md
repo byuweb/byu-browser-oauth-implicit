@@ -1,7 +1,7 @@
 # byu-browser-oauth-implicit
 OAuth Implicit Grant provider for byu-browser-oauth
 
-# Usage
+## Usage
 
 Add the following to the top of index.html in your project.
 
@@ -31,3 +31,9 @@ Add the following to the top of index.html in your project.
 4. generate a sandbox key for the dev application and a production key for the prod application
 
 To implement an observer in your project for this go to https://github.com/byuweb/byu-browser-oauth and follow the example instructions there. 
+
+## Configuration Options
+
+- `clientId` (string): **Required**. Your client ID.
+- `callbackUrl` (string): Optional. Your callback URL.
+- `doNotAutoRefreshOnTimeout` (boolean): Optional. Specify if you want to disable the default setting to auto-refresh the token when it expires.
