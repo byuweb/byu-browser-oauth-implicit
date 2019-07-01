@@ -673,6 +673,11 @@ this.BYU.oauth.implicit = (function (exports) {
           source: 'popup'
         });
 
+        if (state === STATE_AUTHENTICATED) {
+          // delete self now that authentication is complete
+          this.window.close();
+        }
+
         return;
       } // If we're inside the "refresh" iframe
 
