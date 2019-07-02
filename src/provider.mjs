@@ -138,9 +138,9 @@ export class ImplicitGrantProvider {
       // Existing token *should* have a five-minute grace period after expiration:
       // a new request will generate a new token, but the old token should still
       // work during that grace period
-      let fn = () => this.startRefresh('iframe')
-      if (this.config.doNotAutoRefreshOnTimeout) {
-        fn = () => this._changeState(IG_STATE_REFRESH_REQUIRED)
+      let fn = () => this._changeState(IG_STATE_REFRESH_REQUIRED)
+      if (this.config.autoRefreshOnTimeout) {
+        fn = () => this.startRefresh('iframe')
       }
       return setTimeout(fn, 5000)
     }

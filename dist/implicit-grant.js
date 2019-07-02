@@ -757,12 +757,12 @@ class ImplicitGrantProvider {
       // a new request will generate a new token, but the old token should still
       // work during that grace period
       let fn = function fn() {
-        return _this.startRefresh('iframe');
+        return _this._changeState(IG_STATE_REFRESH_REQUIRED);
       };
 
-      if (this.config.doNotAutoRefreshOnTimeout) {
+      if (this.config.autoRefreshOnTimeout) {
         fn = function fn() {
-          return _this._changeState(IG_STATE_REFRESH_REQUIRED);
+          return _this.startRefresh('iframe');
         };
       }
 
@@ -1257,7 +1257,7 @@ async function configure(cfg) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    doNotAutoRefreshOnTimeout: false
+    autoRefreshOnTimeout: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {
