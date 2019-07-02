@@ -36,4 +36,4 @@ To implement an observer in your project for this go to https://github.com/byuwe
 
 - `clientId` (string): **Required**. Your client ID.
 - `callbackUrl` (string): Optional. Your callback URL.
-- `doNotAutoRefreshOnTimeout` (boolean): Optional. Specify if you want to disable the default setting to auto-refresh the token when it expires.
+- `autoRefreshOnTimeout` (boolean): Optional. Specify if you want to enable the setting to auto-refresh the token when it expires.
