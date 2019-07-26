@@ -72,7 +72,7 @@ export class ImplicitGrantProvider {
     }
 
     // If we're inside the "refresh" iframe
-    const iframe = parent.document.getElementById(CHILD_IFRAME_ID)
+    const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID)
     if (iframe) {
       if (source) {
         // event was triggered by a child, so ignore since we're inside a child
@@ -80,7 +80,7 @@ export class ImplicitGrantProvider {
       }
 
       // Pass event along to parent
-      _dispatchEvent(parent, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'iframe' })
+      _dispatchEvent(this.window.parent, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'iframe' })
 
       if (state === authn.STATE_AUTHENTICATED) {
         // delete self now that authentication is complete
@@ -212,11 +212,11 @@ export class ImplicitGrantProvider {
     }
 
     // last option: displayType == 'iframe'
-    let iframe = document.getElementById(CHILD_IFRAME_ID)
+    let iframe = this.document.getElementById(CHILD_IFRAME_ID)
     if (iframe) {
       iframe.parentNode.removeChild(iframe)
     }
-    iframe = document.createElement('iframe')
+    iframe = this.document.createElement('iframe')
     iframe.onload = () => {
       let html = null
       try {
@@ -234,7 +234,7 @@ export class ImplicitGrantProvider {
     iframe.id = CHILD_IFRAME_ID
     iframe.src = loginUrl
     iframe.style = 'display:none'
-    document.body.appendChild(iframe)
+    this.document.body.appendChild(iframe)
   }
 
   startLogout() {
