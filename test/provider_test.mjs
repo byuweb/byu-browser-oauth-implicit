@@ -30,6 +30,8 @@ describe('implicit grant provider', function () {
   let p;
   let tempConsole;
   let element;
+  let storage;
+  const realFetch = fetch;
 
   beforeEach(function () {
     event = {
@@ -61,7 +63,13 @@ describe('implicit grant provider', function () {
         href: fakeUrl
       }
     };
-    p = new ImplicitGrantProvider(config, window, document);
+    storage = {
+      saveOAuthState: sinon.stub(),
+      getOAuthState: sinon.stub().returns({ e: Date.now() + 1000, c: 'dummystate', s: '' }),
+      clearOAuthState: sinon.stub(),
+      getSessionState: sinon.stub(),
+    };
+    p = new ImplicitGrantProvider(config, window, document, storage);
     tempConsole = {
       log: console.log,
       warn: console.warn,
@@ -69,13 +77,19 @@ describe('implicit grant provider', function () {
     };
     console.log = sinon.stub();
     console.warn = sinon.stub();
-    console.error = sinon.stub();
+    // console.error = sinon.stub();
+
+    fetch = sinon.stub().resolves({
+      status: 200,
+      json: sinon.stub().resolves({}),
+    })
   });
 
   afterEach(function() {
     console.log = tempConsole.log;
     console.warn = tempConsole.warn;
     console.error = tempConsole.error;
+    fetch = realFetch;
   })
 
 
@@ -157,6 +171,28 @@ describe('implicit grant provider', function () {
 
       expect(result).to.be.false;
     });
+  });
+
+  describe('startup', () => {
+    it('starts up', async () => {
+      await p.startup();
+      expect(event.initCustomEvent).to.have.been.calledWith(authn.EVENT_STATE_CHANGE, true, false, {
+        error: undefined,
+        token: undefined,
+        user: undefined,
+        state: authn.STATE_INDETERMINATE
+      })
+    })
+    it('starts up with authentication callback', async () => {
+      window.location.hash = '#access_token=dummytoken&state=dummystate';
+      await p.startup();
+      expect(event.initCustomEvent).to.have.been.calledWith(authn.EVENT_STATE_CHANGE, true, false, {
+        error: undefined,
+        token: undefined,
+        user: undefined,
+        state: authn.STATE_AUTHENTICATING
+      })
+    })
   });
 
   describe('shutdown', () => {
