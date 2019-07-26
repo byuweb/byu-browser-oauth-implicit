@@ -4,6 +4,7 @@
 const rollupBabel = require('rollup-plugin-babel');
 const rollupCjs = require('rollup-plugin-commonjs');
 const rollupNode = require('rollup-plugin-node-resolve');
+const istanbul = require('rollup-plugin-istanbul');
 
 module.exports = function (config) {
   const userBrowsers = config.browsers;
@@ -47,7 +48,12 @@ module.exports = function (config) {
         name: 'byuBrowserOauth',
         sourcemap: 'inline',
       },
-      plugins: [rollupBabel(), rollupCjs(), rollupNode({preferBuiltins: false})]
+      plugins: [
+        istanbul({ exclude: ['test/*.mjs', 'node_modules/**/*'] }),
+        rollupBabel(),
+        rollupCjs(),
+        rollupNode({preferBuiltins: false})
+      ]
     },
 
     detectBrowsers: {
@@ -74,7 +80,7 @@ module.exports = function (config) {
     // test results reporter to use
     // possible values: 'dots', 'progress'
     // available reporters: https://npmjs.org/browse/keyword/karma-reporter
-    reporters: ['progress'],
+    reporters: ['progress', 'coverage'],
 
 
     // web server port
