@@ -17,7 +17,7 @@
 
 "use strict";
 
-import * as url from '../src/url.mjs';
+import * as url from '../src/url.js';
 
 describe('url utils', () => {
   describe('parseHash', () => {
