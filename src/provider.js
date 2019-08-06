@@ -142,10 +142,10 @@ export class ImplicitGrantProvider {
       if (this.config.autoRefreshOnTimeout) {
         fn = () => this.startRefresh('iframe')
       }
-      return setTimeout(fn, 5000)
+      return this.window.setTimeout(fn, 5000)
     }
 
-    setTimeout(() => this._checkRefresh(expirationTimeInMs), 5000)
+    this.window.setTimeout(() => this._checkRefresh(expirationTimeInMs), 5000)
   }
 
   get _location() {

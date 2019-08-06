@@ -59,9 +59,11 @@ describe('implicit grant provider', function () {
     };
     window = {
       open: sinon.stub(),
+      close: sinon.stub(),
       location: {
         href: fakeUrl
-      }
+      },
+      setTimeout: sinon.stub()
     };
     storage = {
       saveOAuthState: sinon.stub(),
@@ -248,7 +250,49 @@ describe('implicit grant provider', function () {
       p.startLogin = sinon.stub();
       p.startRefresh('dummy');
       expect(p.startLogin).to.have.been.calledWith('dummy')
-    })
+    });
+  });
+
+  describe('handleStateChange', () => {
+    it('passes message to parent if in popup', () => {
+      window.opener = p;
+      p.handleStateChange({ state: authn.STATE_AUTHENTICATING })
+      expect(document.dispatchEvent).to.have.been.calledWith(event);
+      expect(window.close).not.to.have.been.called;
+    });
+    it('closes window if in popup and authenticated', () => {
+      window.opener = p;
+      p.handleStateChange({ state: authn.STATE_AUTHENTICATED })
+      expect(document.dispatchEvent).to.have.been.calledWith(event);
+      expect(window.close).to.have.been.called;
+    });
+    it('passes message to parent if in iframe', () => {
+      window.parent = p
+      p.handleStateChange({ state: authn.STATE_AUTHENTICATING })
+      expect(document.dispatchEvent).to.have.been.calledWith(event);
+      expect(element.parentNode.removeChild).not.to.have.been.called;
+    });
+    it('closes iframe if in iframe and authenticated', () => {
+      window.parent = p;
+      p.handleStateChange({ state: authn.STATE_AUTHENTICATED })
+      expect(document.dispatchEvent).to.have.been.calledWith(event);
+      expect(element.parentNode.removeChild).to.have.been.called;
+    });
+    it('updates stored session if not in popup or iframe', () => {
+      window.parent = {
+        document: {
+          getElementById: sinon.stub().returns(false)
+        }
+      };
+      p.handleStateChange({
+        state: authn.STATE_AUTHENTICATED,
+        token: {
+          expiresAt: {
+            getTime: sinon.stub().returns(Date.now() + 1000)
+          }
+        }
+      });
+    });
   });
 });
 
