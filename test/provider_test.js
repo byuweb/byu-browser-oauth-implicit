@@ -70,6 +70,8 @@ describe('implicit grant provider', function () {
       getOAuthState: sinon.stub().returns({ e: Date.now() + 1000, c: 'dummystate', s: '' }),
       clearOAuthState: sinon.stub(),
       getSessionState: sinon.stub(),
+      saveSessionState: sinon.stub(),
+      clearSessionState: sinon.stub(),
     };
     p = new ImplicitGrantProvider(config, window, document, storage);
     tempConsole = {
@@ -240,6 +242,14 @@ describe('implicit grant provider', function () {
     });
   });
 
+  describe('startLogout', () => {
+    it('clears session and redirects window', () => {
+      p.startLogout();
+      expect(storage.clearSessionState).to.have.been.called;
+      expect(window.location).to.eql('http://api.byu.edu/logout?redirect_url=https://example.com/spa')
+    })
+  });
+
   describe('startRefresh', () => {
     it('calls startLogin with default "iframe" parameter', () => {
       p.startLogin = sinon.stub();
@@ -286,12 +296,15 @@ describe('implicit grant provider', function () {
       };
       p.handleStateChange({
         state: authn.STATE_AUTHENTICATED,
+        user: { name: 'Dummy' },
         token: {
           expiresAt: {
             getTime: sinon.stub().returns(Date.now() + 1000)
-          }
+          },
+          rawUserInfo: { name: 'Dummy' }
         }
       });
+      expect(storage.saveSessionState).to.have.been.called;
     });
   });
 });

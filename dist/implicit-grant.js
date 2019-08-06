@@ -766,10 +766,10 @@ class ImplicitGrantProvider {
         };
       }
 
-      return setTimeout(fn, 5000);
+      return this.window.setTimeout(fn, 5000);
     }
 
-    setTimeout(function () {
+    this.window.setTimeout(function () {
       return _this._checkRefresh(expirationTimeInMs);
     }, 5000);
   }
