@@ -17,8 +17,8 @@
 "use strict";
 
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
-import {parseHash} from './url.mjs';
-import {StorageHandler} from "./local-storage.mjs";
+import {parseHash} from './url.js';
+import {StorageHandler} from "./local-storage.js";
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
