@@ -22,8 +22,8 @@ import {parseHash} from './url.mjs';
 import {StorageHandler} from "./local-storage.mjs";
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
+const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
-export const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required'
 export const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed'
 
 export class ImplicitGrantProvider {
@@ -102,7 +102,7 @@ export class ImplicitGrantProvider {
     this._maybeUpdateStoredSession(state, user, token);
 
     if (state === authn.STATE_AUTHENTICATED) {
-      this._checkRefresh(token.expiresAt.getTime())
+      this._checkExpired(token.expiresAt.getTime())
     }
   }
 
@@ -138,30 +138,48 @@ export class ImplicitGrantProvider {
     }
   }
 
-  _checkRefresh(expirationTimeInMs) {
+  _checkExpired(expirationTimeInMs) {
     log.debug('checking expiration time');
-    // Simply using setTimeout for an hour in the future
-    // doesn't work; setTimeout isn't that precise over that long of a period.
-    // So re-check every five seconds until we're past the expiration time
 
     const expiresInMs = expirationTimeInMs - Date.now()
 
-    if (expiresInMs < 0 || expiresInMs > 3300000) {
-      log.info('authentication session has expired', expiresInMs);
-      // If we've expired OR if the WSO2 five-minute grace period was not added, then trigger a refresh.
-      // Wait an extra 5 seconds to avoid WSO2 clock skew problems
-      // Existing token *should* have a five-minute grace period after expiration:
-      // a new request will generate a new token, but the old token should still
-      // work during that grace period
-      let fn = () => this._changeState(IG_STATE_REFRESH_REQUIRED)
-      if (this.config.autoRefreshOnTimeout) {
-        log.debug('Scheduling auto refresh');
-        fn = () => this.startRefresh('iframe')
-      }
-      return setTimeout(fn, 5000)
+    const definitelyExpired = expiresInMs < 0;
+    // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦. 
+    // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
+    const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
+
+    if (!definitelyExpired && !maybeFunkyExpiration) {
+      this._scheduleExpirationCheck(expirationTimeInMs);
+      return;
     }
 
-    setTimeout(() => this._checkRefresh(expirationTimeInMs), 5000)
+    if (this.config.autoRefreshOnTimeout) {
+      // If we've expired OR if the WSO2 five-minute grace period was not added, mark the state as refreshing.
+      // Schedule a refresh in an extra 5 seconds to avoid WSO2 clock skew problems.
+      // Existing token *should* have a five-minute grace period after expiration:
+      // a new request will generate a new token, but the old token should still
+      // work during that grace period, so we keep the user and token objects around.
+      if (maybeFunkyExpiration) {
+        log.debug('silently refreshing token to work around odd identity server issue');
+      }
+      this._changeState(authn.STATE_REFRESHING, this.store.user, this.store.token);
+      log.info('scheduling auto-refresh');
+      this._schedulePeriodic(() => this.startRefresh('iframe'));
+    } else if (definitelyExpired) {
+      // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
+      this._changeState(authn.STATE_EXPIRED, this.store.user, this.store.token);
+    }
+  }
+
+  _scheduleExpirationCheck(expirationTimeInMs) {
+    this._schedulePeriodic(() => this._checkExpired(expirationTimeInMs));
+  }
+
+  _schedulePeriodic(task) {
+    // Simply using setTimeout for an hour in the future
+    // doesn't work; setTimeout isn't that precise over that long of a period.
+    // So re-check every five seconds until we're past the expiration time
+    return setTimeout(task, 5000);
   }
 
   get _location() {
