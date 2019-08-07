@@ -1,16 +1,24 @@
-const LEVEL_DEBUG = {
+const LEVEL_TRACE = {
   priority: 0,
-  name: 'debug'
+  name: 'trace',
+  run: handleTrace
+};
+const LEVEL_DEBUG = {
+  priority: 1,
+  name: 'debug',
+  run: handleDebug
 };
 const LEVEL_INFO = {
   priority: 10,
-  name: 'info'
+  name: 'info',
+  run: handleInfo
 };
 const LEVEL_ERROR = {
   priority: 100,
-  name: 'error'
+  name: 'error',
+  run: handleError
 };
-const ALL_LEVELS = [LEVEL_DEBUG, LEVEL_INFO, LEVEL_ERROR];
+const ALL_LEVELS = [LEVEL_TRACE, LEVEL_DEBUG, LEVEL_INFO, LEVEL_ERROR];
 const DEFAULT_LEVEL = LEVEL_INFO;
 function debug(...args) {
   doLog(LEVEL_DEBUG, ...args);
@@ -30,7 +38,7 @@ function doLog(level, ...args) {
   const time = new Date().toLocaleTimeString({
     h12: false
   });
-  console.log('[byu-browser-oauth-implicit]', `[${level.name}]`, `(${time})`, ...args);
+  level.run('[byu-browser-oauth-implicit]', `[${level.name}]`, `(${time})`, ...args);
 }
 
 function shouldLog(level) {
@@ -57,6 +65,34 @@ function levelAttr() {
 function levelGlobalVar() {
   const o = window.byuOAuth || {};
   return o.logging;
+}
+
+function handleTrace(...args) {
+  if (console.trace) {
+    console.trace(...args);
+  } else {
+    console.log(...args);
+  }
+}
+
+function handleDebug(...args) {
+  console.log(...args);
+}
+
+function handleInfo(...args) {
+  if (console.info) {
+    console.info(...args);
+  } else {
+    console.log(...args);
+  }
+}
+
+function handleError(...args) {
+  if (console.error) {
+    console.error(...args);
+  } else {
+    console.log(...args);
+  }
 }
 
 const EVENT_PREFIX = 'byu-browser-oauth';
@@ -696,13 +732,13 @@ class ImplicitGrantProvider {
     debug('initialized provider');
   }
 
-  _changeState(state, user, token, error$$1) {
-    logStateChange(state, user, token, error$$1);
+  _changeState(state, user, token, error) {
+    logStateChange(state, user, token, error);
     this.store = Object.freeze({
       state,
       user,
       token,
-      error: error$$1
+      error
     });
 
     _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
@@ -796,10 +832,10 @@ class ImplicitGrantProvider {
           state,
           user,
           token,
-          error: error$$1
+          error
         } = await _handleAuthenticationCallback(this.config, location, hash, this.storageHandler);
 
-        this._changeState(state, user, token, error$$1);
+        this._changeState(state, user, token, error);
       } catch (err) {
         error('OAuth Error', err);
 
@@ -1351,15 +1387,15 @@ function randomString() {
   }, '');
 }
 
-function logStateChange(state, user, token, error$$1) {
+function logStateChange(state, user, token, error$1) {
   const logParts = ['state change:', {
     state,
     user: redactUser(user),
     token: redactToken(token),
-    error: error$$1
+    error: error$1
   }];
 
-  if (error$$1) {
+  if (error$1) {
     error(...logParts);
   } else {
     info(...logParts);
