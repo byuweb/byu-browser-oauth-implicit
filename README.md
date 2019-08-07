@@ -24,6 +24,7 @@ Add the following to the top of index.html in your project.
     </script>
 </head>
 
+
 ```
 1. Go to api.byu.edu/publisher and create/publish your API
 2. Go to api.byu.edu/store and create two applications (one for dev and one for prod).
@@ -37,3 +38,9 @@ To implement an observer in your project for this go to https://github.com/byuwe
 - `clientId` (string): **Required**. Your client ID.
 - `callbackUrl` (string): Optional. Your callback URL.
 - `autoRefreshOnTimeout` (boolean): Optional. Specify if you want to enable the setting to auto-refresh the token when it expires.
+
+## Debugging
+To turn on debug logging, you can choose one of two methods:
+
+* set the `byu-oauth-logging` attribute to `debug` on your document's root HTML element.
+* add this snipped to a script in your `<head>`: `(window.byuOAuth = window.byuOAuth || {}).logging = 'debug';`

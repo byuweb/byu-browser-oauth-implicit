@@ -17,7 +17,10 @@
 
 "use strict";
 
+import {debug} from './log.js';
+
 export function parseHash(hash) {
+  debug('parsing hash', hash);
   if (!hash) return new Map();
   let subHash = hash;
   if (hash.startsWith('#')) {

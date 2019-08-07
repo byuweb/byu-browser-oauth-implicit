@@ -8,6 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <script>
+    (window.byuOAuth = window.byuOAuth || {}).logging = 'debug';
     window['byu-oauth-implicit-config'] = {
       clientId: 'cSZPaC0Kvjfq1o0fwFTsXmP69lca',
       // forceLogin: true,
@@ -17,7 +18,7 @@
   </script>
 
   <script type="module">
-    import * as implicit from './dist/implicit-grant.mjs';
+    import * as implicit from './dist/implicit-grant.js';
 
     implicit.configure();
   </script>
