@@ -42,5 +42,5 @@ To implement an observer in your project for this go to https://github.com/byuwe
 ## Debugging
 To turn on debug logging, you can choose one of two methods:
 
-* set the `byu-oauth-logging` attribute to `debug` on your document's root HTML element.
+* set the `byu-oauth-logging` attribute to `debug` on your document's root HTML element: `<html byu-oauth-logging="debug">`
 * add this snipped to a script in your `<head>`: `(window.byuOAuth = window.byuOAuth || {}).logging = 'debug';`
