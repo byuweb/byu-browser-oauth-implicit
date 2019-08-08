@@ -163,7 +163,6 @@ export class ImplicitGrantProvider {
         log.debug('silently refreshing token to work around odd identity server issue');
       }
       this._changeState(authn.STATE_REFRESHING, this.store.user, this.store.token);
-      log.info('scheduling auto-refresh');
       this._schedulePeriodic(() => this.startRefresh('iframe'));
     } else if (definitelyExpired) {
       // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
@@ -171,8 +170,26 @@ export class ImplicitGrantProvider {
     }
   }
 
+  _scheduleRefresh() {
+    log.info('scheduling auto-refresh');
+    if (this.__refreshTask) {
+      log.debug('refresh already scheduled');
+      return;
+    }
+    return this.__refreshTask = this._schedulePeriodic(() =>  {
+      this.__refreshTask == null;
+      this.startRefresh('iframe')
+    });
+  }
+
   _scheduleExpirationCheck(expirationTimeInMs) {
-    this._schedulePeriodic(() => this._checkExpired(expirationTimeInMs));
+    if (this.__expirationTask) {
+      cancelTimeout(this.__expirationTask);
+    }
+    return this.__expirationTask = this._schedulePeriodic(() =>  {
+      this.__expirationTask = null;
+      this._checkExpired(expirationTimeInMs);
+    });
   }
 
   _schedulePeriodic(task) {
@@ -230,7 +247,7 @@ export class ImplicitGrantProvider {
   }
 
   startLogin(displayType = 'window') {
-    log.info('Starting login. mode=%s', displayType);
+    log.infof('Starting login. mode=%s', displayType);
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
 
@@ -308,7 +325,7 @@ export class ImplicitGrantProvider {
   }
 
   startRefresh(displayType = 'iframe') {
-    log.info('starting refresh. displayType=%s', displayType);
+    log.infof('starting refresh. displayType=%s', displayType);
     this.startLogin(displayType);
   }
 
@@ -341,7 +358,7 @@ export class ImplicitGrantProvider {
   }
 
   _maybeUpdateStoredSession(state, user, token) {
-    log.debug('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
+    log.debugf('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
     if (state === authn.STATE_UNAUTHENTICATED) {
       log.debug('state is unauthenticated, clearing stored session');
       this.storageHandler.clearSessionState(this.config.clientId);
