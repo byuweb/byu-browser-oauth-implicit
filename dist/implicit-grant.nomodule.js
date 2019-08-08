@@ -5,45 +5,82 @@ this.BYU.oauth.implicit = (function (exports) {
 
   const LEVEL_TRACE = {
     priority: 0,
-    name: 'trace',
+    name: "trace",
     run: handleTrace
   };
   const LEVEL_DEBUG = {
     priority: 1,
-    name: 'debug',
+    name: "debug",
     run: handleDebug
   };
   const LEVEL_INFO = {
     priority: 10,
-    name: 'info',
+    name: "info",
     run: handleInfo
   };
   const LEVEL_ERROR = {
     priority: 100,
-    name: 'error',
+    name: "error",
     run: handleError
   };
   const ALL_LEVELS = [LEVEL_TRACE, LEVEL_DEBUG, LEVEL_INFO, LEVEL_ERROR];
   const DEFAULT_LEVEL = LEVEL_INFO;
   function debug(...args) {
-    doLog(LEVEL_DEBUG, ...args);
+    log(LEVEL_DEBUG, ...args);
   }
   function info(...args) {
-    doLog(LEVEL_INFO, ...args);
+    log(LEVEL_INFO, ...args);
   }
   function error(...args) {
-    doLog(LEVEL_ERROR, ...args);
+    log(LEVEL_ERROR, ...args);
+  }
+  function debugf(format, ...args) {
+    logf(LEVEL_DEBUG, format, ...args);
+  }
+  function infof(format, ...args) {
+    logf(LEVEL_INFO, format, ...args);
   }
 
-  function doLog(level, ...args) {
+  function logf(level, format, ...args) {
     if (!shouldLog(level)) {
       return;
     }
 
-    const time = new Date().toLocaleTimeString({
-      h12: false
-    });
-    level.run('[byu-browser-oauth-implicit]', `[${level.name}]`, `(${time})`, ...args);
+    level.run(`[byu-browser-oauth-implicit] [${level.name}] (${getFormattedTime()}) ${format}`, ...args);
+  }
+
+  function log(level, ...args) {
+    if (!shouldLog(level)) {
+      return;
+    }
+
+    level.run("[byu-browser-oauth-implicit]", `[${level.name}]`, `(${getFormattedTime()})`, ...args);
+  }
+
+  function getFormattedTime() {
+    const now = new Date();
+    const h24 = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const sec = String(now.getSeconds()).padStart(2, '0');
+    const millis = String(now.getMilliseconds()).padStart(3, '0');
+    return `${h24}:${min}:${sec},${millis}${formatTimezone(now)}`;
+  }
+
+  function formatTimezone(date) {
+    const offset = date.getTimezoneOffset();
+
+    if (offset === 0) {
+      return 'Z';
+    }
+
+    const nonNegative = offset >= 0;
+    const absOffset = Math.abs(offset); // Positive whole offset hours
+
+    const hourInt = Math.floor(absOffset / 60);
+    const hourDone = String(hourInt).padStart(2, '0');
+    const sign = nonNegative ? '+' : '-';
+    const minDone = String(absOffset % 60).padStart(2, '0');
+    return `${sign}${hourDone}${minDone}`;
   }
 
   function shouldLog(level) {
@@ -64,7 +101,7 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   function levelAttr() {
-    return document.documentElement.getAttribute('byu-oauth-logging');
+    return document.documentElement.getAttribute("byu-oauth-logging");
   }
 
   function levelGlobalVar() {
@@ -787,7 +824,7 @@ this.BYU.oauth.implicit = (function (exports) {
       } // If we're inside the "refresh" iframe
 
 
-      const iframe = parent.document.getElementById(CHILD_IFRAME_ID);
+      const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID);
 
       if (iframe) {
         if (source) {
@@ -797,7 +834,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
         debug('dispatching event to parent'); // Pass event along to parent
 
-        _dispatchEvent(parent, EVENT_STATE_CHANGE, {
+        _dispatchEvent(this.window.parent, EVENT_STATE_CHANGE, {
           state,
           token,
           user,
@@ -866,7 +903,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
       debug('checking expiration time');
       const expiresInMs = expirationTimeInMs - Date.now();
-      const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦. 
+      const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
       // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
 
       const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
@@ -889,8 +926,6 @@ this.BYU.oauth.implicit = (function (exports) {
 
         this._changeState(STATE_REFRESHING, this.store.user, this.store.token);
 
-        info('scheduling auto-refresh');
-
         this._schedulePeriodic(function () {
           return _this.startRefresh('iframe');
         });
@@ -900,11 +935,34 @@ this.BYU.oauth.implicit = (function (exports) {
       }
     }
 
-    _scheduleExpirationCheck(expirationTimeInMs) {
+    _scheduleRefresh() {
       var _this2 = this;
 
-      this._schedulePeriodic(function () {
-        return _this2._checkExpired(expirationTimeInMs);
+      info('scheduling auto-refresh');
+
+      if (this.__refreshTask) {
+        debug('refresh already scheduled');
+        return;
+      }
+
+      return this.__refreshTask = this._schedulePeriodic(function () {
+        _this2.__refreshTask == null;
+
+        _this2.startRefresh('iframe');
+      });
+    }
+
+    _scheduleExpirationCheck(expirationTimeInMs) {
+      var _this3 = this;
+
+      if (this.__expirationTask) {
+        cancelTimeout(this.__expirationTask);
+      }
+
+      return this.__expirationTask = this._schedulePeriodic(function () {
+        _this3.__expirationTask = null;
+
+        _this3._checkExpired(expirationTimeInMs);
       });
     }
 
@@ -974,9 +1032,9 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     startLogin(displayType = 'window') {
-      var _this3 = this;
+      var _this4 = this;
 
-      info('Starting login. mode=%s', displayType);
+      infof('Starting login. mode=%s', displayType);
       const {
         clientId,
         callbackUrl
@@ -1001,13 +1059,13 @@ this.BYU.oauth.implicit = (function (exports) {
 
       info('Setting up hidden refresh iframe at', loginUrl); // last option: displayType == 'iframe'
 
-      let iframe = document.getElementById(CHILD_IFRAME_ID);
+      let iframe = this.document.getElementById(CHILD_IFRAME_ID);
 
       if (iframe) {
         iframe.parentNode.removeChild(iframe);
       }
 
-      iframe = document.createElement('iframe');
+      iframe = this.document.createElement('iframe');
 
       iframe.onload = function () {
         let html = null;
@@ -1022,7 +1080,7 @@ this.BYU.oauth.implicit = (function (exports) {
           // report problem
           iframe.parentNode.removeChild(iframe);
 
-          _this3._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+          _this4._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
         }
       };
 
@@ -1030,7 +1088,7 @@ this.BYU.oauth.implicit = (function (exports) {
       iframe.src = loginUrl;
       iframe.style = 'display:none';
       debug('appending iframe', iframe);
-      document.body.appendChild(iframe);
+      this.document.body.appendChild(iframe);
     }
 
     startLogout() {
@@ -1058,7 +1116,7 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     startRefresh(displayType = 'iframe') {
-      info('starting refresh. displayType=%s', displayType);
+      infof('starting refresh. displayType=%s', displayType);
       this.startLogin(displayType);
     }
 
@@ -1105,7 +1163,7 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     _maybeUpdateStoredSession(state, user, token) {
-      debug('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
+      debugf('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
 
       if (state === STATE_UNAUTHENTICATED) {
         debug('state is unauthenticated, clearing stored session');
@@ -1416,7 +1474,8 @@ this.BYU.oauth.implicit = (function (exports) {
     const logParts = ['state change:', {
       state,
       user: redactUser(user),
-      token: redactToken(token),
+      token: token,
+      //redactToken(token),
       error: error$1
     }];
 
@@ -1436,15 +1495,19 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   function redactToken(t) {
+    console.log('redacting token', t);
     if (!t) return undefined;
+    console.log(t);
     const {
       bearer,
       expiresAt,
       client
     } = t;
+    console.log(expiresAt);
+    console.log(typeof expiresAt);
     return {
       bearer: redactBearerToken(bearer),
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: !!expiresAt ? expiresAt.toISOString() : null,
       client,
       'rest-is-redacted': true
     };
@@ -1457,13 +1520,13 @@ this.BYU.oauth.implicit = (function (exports) {
 
   /*
    * Copyright 2018 Brigham Young University
-   * 
+   *
    * Licensed under the Apache License, Version 2.0 (the "License");
    * you may not use this file except in compliance with the License.
    * You may obtain a copy of the License at
-   * 
+   *
    *    http://www.apache.org/licenses/LICENSE-2.0
-   * 
+   *
    * Unless required by applicable law or agreed to in writing, software
    * distributed under the License is distributed on an "AS IS" BASIS,
    * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.

@@ -4,7 +4,7 @@ import nodeResolve from 'rollup-plugin-node-resolve';
 import mini from 'rollup-plugin-babel-minify';
 import { plugin as analyze } from 'rollup-plugin-analyzer'
 
-const input = 'src/implicit-grant.mjs';
+const input = 'src/implicit-grant.js';
 const out = 'dist/implicit-grant';
 
 function plugins(...extras) {

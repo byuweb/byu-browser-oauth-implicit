@@ -18,8 +18,8 @@
 
 import * as log from './log.js';
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
-import {parseHash} from './url.mjs';
-import {StorageHandler} from "./local-storage.mjs";
+import {parseHash} from './url.js';
+import {StorageHandler} from "./local-storage.js";
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
@@ -79,7 +79,7 @@ export class ImplicitGrantProvider {
     }
 
     // If we're inside the "refresh" iframe
-    const iframe = parent.document.getElementById(CHILD_IFRAME_ID)
+    const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID)
     if (iframe) {
       if (source) {
         // event was triggered by a child, so ignore since we're inside a child
@@ -88,7 +88,7 @@ export class ImplicitGrantProvider {
 
       log.debug('dispatching event to parent');
       // Pass event along to parent
-      _dispatchEvent(parent, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'iframe' })
+      _dispatchEvent(this.window.parent, authn.EVENT_STATE_CHANGE, { state, token, user, source: 'iframe' })
 
       if (state === authn.STATE_AUTHENTICATED) {
         // delete self now that authentication is complete
@@ -144,7 +144,7 @@ export class ImplicitGrantProvider {
     const expiresInMs = expirationTimeInMs - Date.now()
 
     const definitelyExpired = expiresInMs < 0;
-    // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦. 
+    // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
     // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
     const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
 
@@ -269,11 +269,11 @@ export class ImplicitGrantProvider {
 
     log.info('Setting up hidden refresh iframe at', loginUrl);
     // last option: displayType == 'iframe'
-    let iframe = document.getElementById(CHILD_IFRAME_ID)
+    let iframe = this.document.getElementById(CHILD_IFRAME_ID)
     if (iframe) {
       iframe.parentNode.removeChild(iframe)
     }
-    iframe = document.createElement('iframe')
+    iframe = this.document.createElement('iframe')
     iframe.onload = () => {
       let html = null
       try {
@@ -292,7 +292,7 @@ export class ImplicitGrantProvider {
     iframe.src = loginUrl
     iframe.style = 'display:none'
     log.debug('appending iframe', iframe);
-    document.body.appendChild(iframe)
+    this.document.body.appendChild(iframe);
   }
 
   startLogout() {
@@ -659,7 +659,7 @@ function logStateChange(state, user, token, error) {
     {
       state,
       user: redactUser(user),
-      token: redactToken(token),
+      token: token, //redactToken(token),
       error: error
     }
   ];
@@ -679,11 +679,15 @@ function redactUser(u) {
 }
 
 function redactToken(t) {
+  console.log('redacting token', t);
   if (!t) return undefined;
+  console.log(t);
   const {bearer, expiresAt, client} = t;
+  console.log(expiresAt);
+  console.log(typeof expiresAt);
   return {
     bearer: redactBearerToken(bearer),
-    expiresAt: expiresAt.toISOString(),
+    expiresAt: !!expiresAt ? expiresAt.toISOString() : null,
     client,
     'rest-is-redacted': true
   }

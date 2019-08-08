@@ -4,6 +4,7 @@
 const rollupBabel = require('rollup-plugin-babel');
 const rollupCjs = require('rollup-plugin-commonjs');
 const rollupNode = require('rollup-plugin-node-resolve');
+const istanbul = require('rollup-plugin-istanbul');
 
 module.exports = function (config) {
   const userBrowsers = config.browsers;
@@ -16,15 +17,15 @@ module.exports = function (config) {
     // frameworks to use
     // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
     frameworks: ['mocha', 'chai', 'detectBrowsers', 'sinon'],
- 
+
     // list of files / patterns to load in the browser
     files: [
       {
-        pattern: 'test/*_test.mjs',
+        pattern: 'test/*_test.js',
         watched: true,//Our rollup preprocessor handles watching
       },
       {
-        pattern: 'src/*.mjs',
+        pattern: 'src/*.js',
         included: false,
       }
     ],
@@ -38,7 +39,7 @@ module.exports = function (config) {
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
-      '**/*_test.mjs': ['rollup'],
+      '**/*_test.js': ['rollup'],
     },
 
     rollupPreprocessor: {
@@ -47,7 +48,12 @@ module.exports = function (config) {
         name: 'byuBrowserOauth',
         sourcemap: 'inline',
       },
-      plugins: [rollupBabel(), rollupCjs(), rollupNode({preferBuiltins: false})]
+      plugins: [
+        istanbul({ exclude: ['test/*.js', 'node_modules/**/*'] }),
+        rollupBabel(),
+        rollupCjs(),
+        rollupNode({preferBuiltins: false})
+      ]
     },
 
     detectBrowsers: {
@@ -60,6 +66,13 @@ module.exports = function (config) {
         if (chrome > -1) {
           result.splice(chrome, 1, 'ChromeHeadless')
         }
+
+        // We no longer need to support IE
+        const IE = available.indexOf('IE');
+        if (IE > -1) {
+          result.splice(IE, 1)
+        }
+
         return result;
       }
     },
@@ -67,7 +80,7 @@ module.exports = function (config) {
     // test results reporter to use
     // possible values: 'dots', 'progress'
     // available reporters: https://npmjs.org/browse/keyword/karma-reporter
-    reporters: ['progress'],
+    reporters: ['progress', 'coverage'],
 
 
     // web server port
