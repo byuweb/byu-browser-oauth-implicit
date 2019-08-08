@@ -677,7 +677,7 @@ class ImplicitGrantProvider {
     } // If we're inside the "refresh" iframe
 
 
-    const iframe = parent.document.getElementById(CHILD_IFRAME_ID);
+    const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID);
 
     if (iframe) {
       if (source) {
@@ -686,7 +686,7 @@ class ImplicitGrantProvider {
       } // Pass event along to parent
 
 
-      _dispatchEvent(parent, EVENT_STATE_CHANGE, {
+      _dispatchEvent(this.window.parent, EVENT_STATE_CHANGE, {
         state,
         token,
         user,
@@ -766,10 +766,10 @@ class ImplicitGrantProvider {
         };
       }
 
-      return setTimeout(fn, 5000);
+      return this.window.setTimeout(fn, 5000);
     }
 
-    setTimeout(function () {
+    this.window.setTimeout(function () {
       return _this._checkRefresh(expirationTimeInMs);
     }, 5000);
   }
@@ -852,13 +852,13 @@ class ImplicitGrantProvider {
     } // last option: displayType == 'iframe'
 
 
-    let iframe = document.getElementById(CHILD_IFRAME_ID);
+    let iframe = this.document.getElementById(CHILD_IFRAME_ID);
 
     if (iframe) {
       iframe.parentNode.removeChild(iframe);
     }
 
-    iframe = document.createElement('iframe');
+    iframe = this.document.createElement('iframe');
 
     iframe.onload = function () {
       let html = null;
@@ -880,7 +880,7 @@ class ImplicitGrantProvider {
     iframe.id = CHILD_IFRAME_ID;
     iframe.src = loginUrl;
     iframe.style = 'display:none';
-    document.body.appendChild(iframe);
+    this.document.body.appendChild(iframe);
   }
 
   startLogout() {
@@ -1224,13 +1224,13 @@ function randomString() {
 
 /*
  * Copyright 2018 Brigham Young University
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.

@@ -17,7 +17,7 @@
 
 "use strict";
 
-import * as url from '../src/url.mjs';
+import * as url from '../src/url.js';
 
 describe('url utils', () => {
   describe('parseHash', () => {
@@ -34,7 +34,7 @@ describe('url utils', () => {
     });
 
     it('Handles strings starting with \'#\'', () => {
-      const input = 'foo=bar&bar=baz';
+      const input = '#foo=bar&bar=baz';
       const output = url.parseHash(input);
       expect(output).to.have.all.keys(['foo', 'bar']);
     });
