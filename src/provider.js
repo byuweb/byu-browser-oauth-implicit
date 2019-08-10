@@ -21,6 +21,8 @@ import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 import {parseHash} from './url.js';
 import {StorageHandler} from "./local-storage.js";
 
+let SINGLETON_INSTANCE;
+
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
@@ -107,6 +109,7 @@ export class ImplicitGrantProvider {
   }
 
   async startup() {
+    ensureOnlyInstance(this);
     log.info('starting up');
     this.listen();
     this._changeState(authn.STATE_INDETERMINATE);
@@ -136,6 +139,7 @@ export class ImplicitGrantProvider {
       log.debug('no authentication present');
       this._changeState(authn.STATE_UNAUTHENTICATED);
     }
+    return this;
   }
 
   _checkExpired(expirationTimeInMs) {
@@ -177,14 +181,14 @@ export class ImplicitGrantProvider {
       return;
     }
     return this.__refreshTask = this._schedulePeriodic(() =>  {
-      this.__refreshTask == null;
+      this.__refreshTask = null;
       this.startRefresh('iframe')
     });
   }
 
   _scheduleExpirationCheck(expirationTimeInMs) {
     if (this.__expirationTask) {
-      cancelTimeout(this.__expirationTask);
+      clearTimeout(this.__expirationTask);
     }
     return this.__expirationTask = this._schedulePeriodic(() =>  {
       this.__expirationTask = null;
@@ -226,6 +230,7 @@ export class ImplicitGrantProvider {
     log.info('shutting down');
     this.unlisten();
     this._changeState(authn.STATE_INDETERMINATE);
+    cleanupOnlyInstance(this);
   }
 
   listen() {
@@ -695,4 +700,24 @@ function redactToken(t) {
 function redactBearerToken(b) {
   if (!b) return undefined;
   return b.substring(0, 2) + '...redacted...' + b.substring(b.length - 2)
+}
+
+function ensureOnlyInstance(obj) {
+  if (SINGLETON_INSTANCE) {
+    const trace = SINGLETON_INSTANCE.___startupTrace;
+    throw new Error('There is already an instance of byu-oauth-implicit running!  Please call `#shutdown()` on that instance before starting a new one. Instance was started at:\n' + trace);
+  }
+  obj.___startupTrace = new Error().stack;
+  SINGLETON_INSTANCE = obj;
+}
+
+function cleanupOnlyInstance(obj) {
+  SINGLETON_INSTANCE = null;
+}
+
+export function __forceShutdown() {
+  if (SINGLETON_INSTANCE) {
+    SINGLETON_INSTANCE.shutdown();
+    cleanupOnlyInstance(SINGLETON_INSTANCE);
+  }
 }

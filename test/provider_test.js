@@ -17,8 +17,10 @@ import {ImplicitGrantProvider} from "../src/provider";
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 
 import sinonChai from '../node_modules/sinon-chai/lib/sinon-chai.js';
+import chaiAsPromised from '../node_modules/chai-as-promised/lib/chai-as-promised.js';
 
 chai.use(sinonChai);
+chai.use(chaiAsPromised);
 
 const fakeUrl = 'https://example.com/spa';
 
@@ -75,12 +77,14 @@ describe('implicit grant provider', function () {
     };
     p = new ImplicitGrantProvider(config, window, document, storage);
     tempConsole = {
+      info: console.info,
       log: console.log,
       warn: console.warn,
       error: console.error
     };
-    console.log = sinon.stub();
-    console.warn = sinon.stub();
+    // console.log = sinon.stub();
+    // console.warn = sinon.stub();
+    // console.info = sinon.stub();
     // console.error = sinon.stub();
 
     fetch = sinon.stub().resolves({
@@ -90,11 +94,37 @@ describe('implicit grant provider', function () {
   });
 
   afterEach(function() {
+    p.shutdown();
+    console.info = tempConsole.info;
     console.log = tempConsole.log;
     console.warn = tempConsole.warn;
     console.error = tempConsole.error;
     fetch = realFetch;
-  })
+  });
+
+  describe('only allows one instance to be started at a time', () => {
+    let second;
+    it('#startup() fails if a provider is already started', async () => {
+      await p.startup();
+
+      second = new ImplicitGrantProvider(config, window, document, storage);
+      return expect(second.startup()).to.be.rejected;
+    });
+
+    it('allows another provider to start if the previous one has been shutdown', async () => {
+      await p.startup();
+      p.shutdown();
+
+      second = new ImplicitGrantProvider(config, window, document, storage);
+      return expect(second.startup()).to.be.fulfilled;
+    });
+
+    afterEach(() => {
+      if (second) {
+        second.shutdown();
+      }
+    });
+  });
 
 
   describe('listen', () => {
