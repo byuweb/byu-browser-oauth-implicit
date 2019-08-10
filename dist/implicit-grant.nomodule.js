@@ -754,6 +754,7 @@ this.BYU.oauth.implicit = (function (exports) {
    *    See the License for the specific language governing permissions and
    *    limitations under the License.
    */
+  let SINGLETON_INSTANCE;
   const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
   const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
   const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
@@ -858,6 +859,7 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     async startup() {
+      ensureOnlyInstance(this);
       info('starting up');
       this.listen();
 
@@ -896,6 +898,8 @@ this.BYU.oauth.implicit = (function (exports) {
 
         this._changeState(STATE_UNAUTHENTICATED);
       }
+
+      return this;
     }
 
     _checkExpired(expirationTimeInMs) {
@@ -946,7 +950,7 @@ this.BYU.oauth.implicit = (function (exports) {
       }
 
       return this.__refreshTask = this._schedulePeriodic(function () {
-        _this2.__refreshTask == null;
+        _this2.__refreshTask = null;
 
         _this2.startRefresh('iframe');
       });
@@ -956,7 +960,7 @@ this.BYU.oauth.implicit = (function (exports) {
       var _this3 = this;
 
       if (this.__expirationTask) {
-        cancelTimeout(this.__expirationTask);
+        clearTimeout(this.__expirationTask);
       }
 
       return this.__expirationTask = this._schedulePeriodic(function () {
@@ -1001,6 +1005,8 @@ this.BYU.oauth.implicit = (function (exports) {
       this.unlisten();
 
       this._changeState(STATE_INDETERMINATE);
+
+      cleanupOnlyInstance();
     }
 
     listen() {
@@ -1518,6 +1524,20 @@ this.BYU.oauth.implicit = (function (exports) {
     return b.substring(0, 2) + '...redacted...' + b.substring(b.length - 2);
   }
 
+  function ensureOnlyInstance(obj) {
+    if (SINGLETON_INSTANCE) {
+      const trace = SINGLETON_INSTANCE.___startupTrace;
+      throw new Error('There is already an instance of byu-oauth-implicit running!  Please call `#shutdown()` on that instance before starting a new one. Instance was started at:\n' + trace);
+    }
+
+    obj.___startupTrace = new Error().stack;
+    SINGLETON_INSTANCE = obj;
+  }
+
+  function cleanupOnlyInstance(obj) {
+    SINGLETON_INSTANCE = null;
+  }
+
   /*
    * Copyright 2018 Brigham Young University
    *
@@ -1544,11 +1564,12 @@ this.BYU.oauth.implicit = (function (exports) {
    */
 
   /**
-   *
-   * @param {ImplicitConfig} cfg
+   * @param {ImplicitConfig|ImplicitConfig[]} cfgOrRules
+   * @param location
    */
 
-  async function configure(cfg) {
+  async function configure(cfgOrRules, location = window.location) {
+    const cfg = resolveConfig(cfgOrRules, location);
     const globalConfig = window[GLOBAL_CONFIG_KEY];
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
@@ -1562,6 +1583,33 @@ this.BYU.oauth.implicit = (function (exports) {
 
     const provider = new ImplicitGrantProvider(config, window, document);
     return provider.startup();
+  }
+
+  function resolveConfig(rules, location) {
+    if ('clientId' in rules) {
+      return rules;
+    }
+
+    const keys = Object.keys(rules).filter(function (it) {
+      return it.startsWith('https://') || it.startsWith('http://');
+    });
+
+    if (keys.length === 0) {
+      return rules;
+    }
+
+    const key = keys // order by length of key (most specific), descending
+    .sort(function (a, b) {
+      return b.length - a.length;
+    }).find(function (it) {
+      return location.href.startsWith(it);
+    });
+
+    if (key) {
+      return rules[key];
+    }
+
+    throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
   }
 
   exports.DEFAULT_ISSUER = DEFAULT_ISSUER;
