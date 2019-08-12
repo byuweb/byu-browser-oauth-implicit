@@ -17,8 +17,10 @@ import {ImplicitGrantProvider} from "../src/provider";
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 
 import sinonChai from '../node_modules/sinon-chai/lib/sinon-chai.js';
+import chaiAsPromised from '../node_modules/chai-as-promised/lib/chai-as-promised.js';
 
 chai.use(sinonChai);
+chai.use(chaiAsPromised);
 
 const fakeUrl = 'https://example.com/spa';
 
@@ -75,13 +77,15 @@ describe('implicit grant provider', function () {
     };
     p = new ImplicitGrantProvider(config, window, document, storage);
     tempConsole = {
+      info: console.info,
       log: console.log,
       warn: console.warn,
       error: console.error
     };
     console.log = sinon.stub();
     console.warn = sinon.stub();
-    // console.error = sinon.stub();
+    console.info = sinon.stub();
+    console.error = sinon.stub();
 
     fetch = sinon.stub().resolves({
       status: 200,
@@ -90,11 +94,37 @@ describe('implicit grant provider', function () {
   });
 
   afterEach(function() {
+    p.shutdown();
+    console.info = tempConsole.info;
     console.log = tempConsole.log;
     console.warn = tempConsole.warn;
     console.error = tempConsole.error;
     fetch = realFetch;
-  })
+  });
+
+  describe('only allows one instance to be started at a time', () => {
+    let second;
+    it('#startup() fails if a provider is already started', async () => {
+      await p.startup();
+
+      second = new ImplicitGrantProvider(config, window, document, storage);
+      return expect(second.startup()).to.be.rejected;
+    });
+
+    it('allows another provider to start if the previous one has been shutdown', async () => {
+      await p.startup();
+      p.shutdown();
+
+      second = new ImplicitGrantProvider(config, window, document, storage);
+      return expect(second.startup()).to.be.fulfilled;
+    });
+
+    afterEach(() => {
+      if (second) {
+        second.shutdown();
+      }
+    });
+  });
 
 
   describe('listen', () => {
@@ -246,7 +276,7 @@ describe('implicit grant provider', function () {
     it('clears session and redirects window', () => {
       p.startLogout();
       expect(storage.clearSessionState).to.have.been.called;
-      expect(window.location).to.eql('http://api.byu.edu/logout?redirect_url=https://example.com/spa')
+      expect(window.location).to.eql('http://api.byu.edu/logout?redirect_url=' + encodeURIComponent('https://example.com/spa'))
     })
   });
 
@@ -298,9 +328,7 @@ describe('implicit grant provider', function () {
         state: authn.STATE_AUTHENTICATED,
         user: { name: 'Dummy' },
         token: {
-          expiresAt: {
-            getTime: sinon.stub().returns(Date.now() + 1000)
-          },
+          expiresAt: new Date(Date.now() + 1000),
           rawUserInfo: { name: 'Dummy' }
         }
       });

@@ -1,6 +1,6 @@
 /*
  *  @license
- *    Copyright 2018 Brigham Young University
+ *    Copyright 2019 Brigham Young University
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,21 +14,24 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
-"use strict";
-
-import {debug} from './log.js';
-
-export function parseHash(hash) {
-  debug('parsing hash', hash);
-  if (!hash) return new Map();
-  let subHash = hash;
-  if (hash.startsWith('#')) {
-    subHash = hash.substr(1);
-  }
-
-  const keyValues = subHash.split('&')
-    .map(it => it.split('=', 2));
-  return new Map(keyValues);
+html {
+  height: 100%;
+  background: #FAFAFA;
 }
 
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+main {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-grow: 1;
+}
+
+.nav-placeholder {
+  visibility: hidden;
+}

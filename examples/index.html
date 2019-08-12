@@ -1,0 +1,78 @@
+<!--
+  ~  @license
+  ~    Copyright 2019 Brigham Young University
+  ~
+  ~    Licensed under the Apache License, Version 2.0 (the "License");
+  ~    you may not use this file except in compliance with the License.
+  ~    You may obtain a copy of the License at
+  ~
+  ~        http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~    Unless required by applicable law or agreed to in writing, software
+  ~    distributed under the License is distributed on an "AS IS" BASIS,
+  ~    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~    See the License for the specific language governing permissions and
+  ~    limitations under the License.
+  -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+
+  <link rel="modulepreload" href="https://cdn.byu.edu/byu-theme-components/2.x.x/components.min.js">
+
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css"
+        as="style" crossorigin="anonymous" />
+
+  <title>byu-browser-oauth-implicit Examples</title>
+  <script defer src="https://cdn.byu.edu/byu-theme-components/2.x.x/byu-theme-components.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.byu.edu/byu-theme-components/2.x.x/byu-theme-components.min.css" media="all">
+  <link rel="stylesheet" href="examples.css" media="all">
+
+  <link rel="icon" href="https://cdn.byu.edu/shared-icons/latest/favicons/favicon.ico"/>
+
+  <script type="module">
+      import {enhanceHeader} from "./header.js";
+
+      enhanceHeader('index.html');
+  </script>
+</head>
+<body>
+<byu-header>
+  <byu-breadcrumbs slot="breadcrumbs">
+    <a href="https://webcommunity.byu.edu">Web Community</a>
+  </byu-breadcrumbs>
+  <h1 slot="site-title">Implicit Grant Examples</h1>
+  <byu-menu slot="nav" active-selector="[active]">
+    <span class="nav-placeholder"></span>
+  </byu-menu>
+</byu-header>
+<main id="main">
+  <h1>Implicit Grant Examples</h1>
+
+  <p>
+    <b>Note:</b> because the maintainers are busy, these demos currently only work in modern browsers
+    (Chrome, Firefox, Safari, Edge). The actual implicit grant provider works on IE11, though.
+  </p>
+
+  <p>Each example has a link to its source on Github</p>
+
+  <h2>Examples</h2>
+  <ul>
+    <li>
+      <a href="user-info.html">User Information</a>
+    </li>
+    <li>
+      <a href="api-calls.html">API Calls</a>
+    </li>
+    <li>
+      <a href="sub-routes.html">Sub-routes</a>
+    </li>
+  </ul>
+</main>
+<byu-footer></byu-footer>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css" integrity="sha256-UzFD2WYH2U1dQpKDjjZK72VtPeWP50NoJjd26rnAdUI=" crossorigin="anonymous" />
+</body>
+</html>

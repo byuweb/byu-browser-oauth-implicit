@@ -3,6 +3,140 @@ this.BYU.oauth = this.BYU.oauth || {};
 this.BYU.oauth.implicit = (function (exports) {
   'use strict';
 
+  const LEVEL_TRACE = {
+    priority: 0,
+    name: "trace",
+    run: handleTrace
+  };
+  const LEVEL_DEBUG = {
+    priority: 1,
+    name: "debug",
+    run: handleDebug
+  };
+  const LEVEL_INFO = {
+    priority: 10,
+    name: "info",
+    run: handleInfo
+  };
+  const LEVEL_ERROR = {
+    priority: 100,
+    name: "error",
+    run: handleError
+  };
+  const ALL_LEVELS = [LEVEL_TRACE, LEVEL_DEBUG, LEVEL_INFO, LEVEL_ERROR];
+  const DEFAULT_LEVEL = LEVEL_INFO;
+  function debug(...args) {
+    log(LEVEL_DEBUG, ...args);
+  }
+  function info(...args) {
+    log(LEVEL_INFO, ...args);
+  }
+  function error(...args) {
+    log(LEVEL_ERROR, ...args);
+  }
+  function debugf(format, ...args) {
+    logf(LEVEL_DEBUG, format, ...args);
+  }
+  function infof(format, ...args) {
+    logf(LEVEL_INFO, format, ...args);
+  }
+
+  function logf(level, format, ...args) {
+    if (!shouldLog(level)) {
+      return;
+    }
+
+    level.run(`[byu-browser-oauth-implicit] [${level.name}] (${getFormattedTime()}) ${format}`, ...args);
+  }
+
+  function log(level, ...args) {
+    if (!shouldLog(level)) {
+      return;
+    }
+
+    level.run("[byu-browser-oauth-implicit]", `[${level.name}]`, `(${getFormattedTime()})`, ...args);
+  }
+
+  function getFormattedTime() {
+    const now = new Date();
+    const h24 = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const sec = String(now.getSeconds()).padStart(2, '0');
+    const millis = String(now.getMilliseconds()).padStart(3, '0');
+    return `${h24}:${min}:${sec},${millis}${formatTimezone(now)}`;
+  }
+
+  function formatTimezone(date) {
+    const offset = date.getTimezoneOffset();
+
+    if (offset === 0) {
+      return 'Z';
+    }
+
+    const nonNegative = offset >= 0;
+    const absOffset = Math.abs(offset); // Positive whole offset hours
+
+    const hourInt = Math.floor(absOffset / 60);
+    const hourDone = String(hourInt).padStart(2, '0');
+    const sign = nonNegative ? '+' : '-';
+    const minDone = String(absOffset % 60).padStart(2, '0');
+    return `${sign}${hourDone}${minDone}`;
+  }
+
+  function shouldLog(level) {
+    return level.priority >= currentLevel().priority;
+  }
+
+  function currentLevel() {
+    const name = levelAttr() || levelGlobalVar();
+
+    if (!name) {
+      return DEFAULT_LEVEL;
+    }
+
+    const lower = name.toLowerCase();
+    return ALL_LEVELS.find(function (l) {
+      return l.name === lower;
+    }) || DEFAULT_LEVEL;
+  }
+
+  function levelAttr() {
+    return document.documentElement.getAttribute("byu-oauth-logging");
+  }
+
+  function levelGlobalVar() {
+    const o = window.byuOAuth || {};
+    return o.logging;
+  }
+
+  function handleTrace(...args) {
+    if (console.trace) {
+      console.trace(...args);
+    } else {
+      console.log(...args);
+    }
+  }
+
+  function handleDebug(...args) {
+    console.log(...args);
+  }
+
+  function handleInfo(...args) {
+    if (console.info) {
+      console.info(...args);
+    } else {
+      console.log(...args);
+    }
+  }
+
+  function handleError(...args) {
+    if (console.error) {
+      console.error(...args);
+    } else {
+      console.log(...args);
+    }
+  }
+
   const EVENT_PREFIX = 'byu-browser-oauth';
   const EVENT_STATE_CHANGE = `${EVENT_PREFIX}-state-changed`;
   const EVENT_LOGIN_REQUESTED = `${EVENT_PREFIX}-login-requested`;
@@ -13,6 +147,8 @@ this.BYU.oauth.implicit = (function (exports) {
   const STATE_UNAUTHENTICATED = 'unauthenticated';
   const STATE_AUTHENTICATED = 'authenticated';
   const STATE_AUTHENTICATING = 'authenticating';
+  const STATE_REFRESHING = 'refreshing';
+  const STATE_EXPIRED = 'expired';
   const STATE_ERROR = 'error';
 
   /*
@@ -31,8 +167,8 @@ this.BYU.oauth.implicit = (function (exports) {
    *    See the License for the specific language governing permissions and
    *    limitations under the License.
    */
-
   function parseHash(hash) {
+    debug('parsing hash', hash);
     if (!hash) return new Map();
     let subHash = hash;
 
@@ -618,13 +754,15 @@ this.BYU.oauth.implicit = (function (exports) {
    *    See the License for the specific language governing permissions and
    *    limitations under the License.
    */
+  let SINGLETON_INSTANCE;
   const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
+  const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
   const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
-  const IG_STATE_REFRESH_REQUIRED = 'implicit-grant-refresh-required';
   const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed';
   class ImplicitGrantProvider {
     constructor(config, window, document, storageHandler = new StorageHandler()) {
+      debug('initializing provider with config', config);
       this.config = config;
       this.window = window;
       this.document = document;
@@ -636,9 +774,11 @@ this.BYU.oauth.implicit = (function (exports) {
         token: null,
         error: null
       });
+      debug('initialized provider');
     }
 
     _changeState(state, user, token, error) {
+      logStateChange(state, user, token, error);
       this.store = Object.freeze({
         state,
         user,
@@ -657,14 +797,16 @@ this.BYU.oauth.implicit = (function (exports) {
       token,
       source
     }) {
-      // If this is a popup
+      debug('in handleStateChange', state); // If this is a popup
+
       if (this.window.opener) {
         // We're inside a child re-authentication popup
         if (source) {
           // event was triggered by a child, so ignore since we're inside a child
           return;
-        } // Pass event along to parent
+        }
 
+        debug('dispatching event to parent'); // Pass event along to parent
 
         _dispatchEvent(this.window.opener, EVENT_STATE_CHANGE, {
           state,
@@ -675,6 +817,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
         if (state === STATE_AUTHENTICATED) {
           // delete self now that authentication is complete
+          info('closing self');
           this.window.close();
         }
 
@@ -688,8 +831,9 @@ this.BYU.oauth.implicit = (function (exports) {
         if (source) {
           // event was triggered by a child, so ignore since we're inside a child
           return;
-        } // Pass event along to parent
+        }
 
+        debug('dispatching event to parent'); // Pass event along to parent
 
         _dispatchEvent(this.window.parent, EVENT_STATE_CHANGE, {
           state,
@@ -700,6 +844,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
         if (state === STATE_AUTHENTICATED) {
           // delete self now that authentication is complete
+          info('removing child iframe');
           iframe.parentNode.removeChild(iframe);
         }
 
@@ -709,11 +854,13 @@ this.BYU.oauth.implicit = (function (exports) {
       this._maybeUpdateStoredSession(state, user, token);
 
       if (state === STATE_AUTHENTICATED) {
-        this._checkRefresh(token.expiresAt.getTime());
+        this._checkExpired(token.expiresAt.getTime());
       }
     }
 
     async startup() {
+      ensureOnlyInstance(this);
+      info('starting up');
       this.listen();
 
       this._changeState(STATE_INDETERMINATE);
@@ -722,6 +869,8 @@ this.BYU.oauth.implicit = (function (exports) {
       const hash = this._hashParams;
 
       if (this.isAuthenticationCallback(location.href, hash)) {
+        debug('handling authentication callback');
+
         this._changeState(STATE_AUTHENTICATING);
 
         try {
@@ -734,49 +883,98 @@ this.BYU.oauth.implicit = (function (exports) {
 
           this._changeState(state, user, token, error);
         } catch (err) {
-          console.error('OAuth Error', err);
+          error('OAuth Error', err);
 
           this._changeState(STATE_ERROR, undefined, undefined, err);
         }
       }
 
       if (this.hasStoredSession()) {
+        debug('Has stored session');
+
         this._updateStateFromStorage();
       } else {
+        debug('no authentication present');
+
         this._changeState(STATE_UNAUTHENTICATED);
+      }
+
+      return this;
+    }
+
+    _checkExpired(expirationTimeInMs) {
+      var _this = this;
+
+      debug('checking expiration time');
+      const expiresInMs = expirationTimeInMs - Date.now();
+      const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
+      // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
+
+      const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
+
+      if (!definitelyExpired && !maybeFunkyExpiration) {
+        this._scheduleExpirationCheck(expirationTimeInMs);
+
+        return;
+      }
+
+      if (this.config.autoRefreshOnTimeout) {
+        // If we've expired OR if the WSO2 five-minute grace period was not added, mark the state as refreshing.
+        // Schedule a refresh in an extra 5 seconds to avoid WSO2 clock skew problems.
+        // Existing token *should* have a five-minute grace period after expiration:
+        // a new request will generate a new token, but the old token should still
+        // work during that grace period, so we keep the user and token objects around.
+        if (maybeFunkyExpiration) {
+          debug('silently refreshing token to work around odd identity server issue');
+        }
+
+        this._changeState(STATE_REFRESHING, this.store.user, this.store.token);
+
+        this._schedulePeriodic(function () {
+          return _this.startRefresh('iframe');
+        });
+      } else if (definitelyExpired) {
+        // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
+        this._changeState(STATE_EXPIRED, this.store.user, this.store.token);
       }
     }
 
-    _checkRefresh(expirationTimeInMs) {
-      var _this = this;
+    _scheduleRefresh() {
+      var _this2 = this;
 
+      info('scheduling auto-refresh');
+
+      if (this.__refreshTask) {
+        debug('refresh already scheduled');
+        return;
+      }
+
+      return this.__refreshTask = this._schedulePeriodic(function () {
+        _this2.__refreshTask = null;
+
+        _this2.startRefresh('iframe');
+      });
+    }
+
+    _scheduleExpirationCheck(expirationTimeInMs) {
+      var _this3 = this;
+
+      if (this.__expirationTask) {
+        clearTimeout(this.__expirationTask);
+      }
+
+      return this.__expirationTask = this._schedulePeriodic(function () {
+        _this3.__expirationTask = null;
+
+        _this3._checkExpired(expirationTimeInMs);
+      });
+    }
+
+    _schedulePeriodic(task) {
       // Simply using setTimeout for an hour in the future
       // doesn't work; setTimeout isn't that precise over that long of a period.
       // So re-check every five seconds until we're past the expiration time
-      const expiresInMs = expirationTimeInMs - Date.now();
-
-      if (expiresInMs < 0 || expiresInMs > 3300000) {
-        // If we've expired OR if the WSO2 five-minute grace period was not added, then trigger a refresh.
-        // Wait an extra 5 seconds to avoid WSO2 clock skew problems
-        // Existing token *should* have a five-minute grace period after expiration:
-        // a new request will generate a new token, but the old token should still
-        // work during that grace period
-        let fn = function fn() {
-          return _this._changeState(IG_STATE_REFRESH_REQUIRED);
-        };
-
-        if (this.config.autoRefreshOnTimeout) {
-          fn = function fn() {
-            return _this.startRefresh('iframe');
-          };
-        }
-
-        return this.window.setTimeout(fn, 5000);
-      }
-
-      this.window.setTimeout(function () {
-        return _this._checkRefresh(expirationTimeInMs);
-      }, 5000);
+      return setTimeout(task, 5000);
     }
 
     get _location() {
@@ -803,12 +1001,17 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     shutdown() {
+      info('shutting down');
       this.unlisten();
 
       this._changeState(STATE_INDETERMINATE);
+
+      cleanupOnlyInstance();
     }
 
     listen() {
+      debug('setting up event listeners');
+
       _listenTo(this, EVENT_LOGIN_REQUESTED, this.startLogin);
 
       _listenTo(this, EVENT_LOGOUT_REQUESTED, this.startLogout);
@@ -821,6 +1024,8 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     unlisten() {
+      debug('tearing down event listeners');
+
       _unlistenTo(this, EVENT_LOGIN_REQUESTED);
 
       _unlistenTo(this, EVENT_LOGOUT_REQUESTED);
@@ -833,9 +1038,9 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     startLogin(displayType = 'window') {
-      var _this2 = this;
+      var _this4 = this;
 
-      console.log('starting login', this);
+      infof('Starting login. mode=%s', displayType);
       const {
         clientId,
         callbackUrl
@@ -846,16 +1051,19 @@ this.BYU.oauth.implicit = (function (exports) {
 
       this.storageHandler.saveOAuthState(this.config.clientId, storedState);
       const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+      debug('computed login url of', loginUrl);
 
       if (!displayType || displayType == 'window') {
-        console.warn(`[OAuth] - Redirecting user to '${loginUrl}'`);
+        info(`Redirecting user to '${loginUrl}'`);
         this.window.location = loginUrl;
         return;
       } else if (displayType === 'popup') {
+        info('launching popup at', loginUrl);
         this.window.open(loginUrl);
         return;
-      } // last option: displayType == 'iframe'
+      }
 
+      info('Setting up hidden refresh iframe at', loginUrl); // last option: displayType == 'iframe'
 
       let iframe = this.document.getElementById(CHILD_IFRAME_ID);
 
@@ -878,20 +1086,23 @@ this.BYU.oauth.implicit = (function (exports) {
           // report problem
           iframe.parentNode.removeChild(iframe);
 
-          _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+          _this4._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
         }
       };
 
       iframe.id = CHILD_IFRAME_ID;
       iframe.src = loginUrl;
       iframe.style = 'display:none';
+      debug('appending iframe', iframe);
       this.document.body.appendChild(iframe);
     }
 
     startLogout() {
+      info('starting logout');
       this.storageHandler.clearSessionState(this.config.clientId);
-      const redirectUrl = this.config.callbackUrl;
-      this.window.location = 'http://api.byu.edu/logout?redirect_url=' + redirectUrl; //https://api.byu.edu/revoke
+      const logoutUrl = 'http://api.byu.edu/logout?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+      info('logging out by redirecting to', logoutUrl);
+      this.window.location = logoutUrl; //https://api.byu.edu/revoke
       //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
       // const url = `https://api.byu.edu/revoke`;
       // const form = new URLSearchParams();
@@ -911,21 +1122,27 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     startRefresh(displayType = 'iframe') {
+      infof('starting refresh. displayType=%s', displayType);
       this.startLogin(displayType);
     }
 
     handleCurrentInfoRequest({
       callback
     }) {
+      debug('got current info request');
+
       if (callback) {
         callback(this.store);
       }
     }
 
     _updateStateFromStorage() {
+      debug('updating state from local storage');
       const serialized = this.storageHandler.getSessionState(this.config.clientId);
 
       if (!serialized) {
+        debug('no stored state');
+
         this._changeState(STATE_UNAUTHENTICATED);
 
         return;
@@ -937,18 +1154,28 @@ this.BYU.oauth.implicit = (function (exports) {
       } = deserializeSessionState(serialized);
 
       if (!user || !token) {
+        debug('no stored user or token');
+
         this._changeState(STATE_UNAUTHENTICATED);
       } else if (token.expiresAt > new Date()) {
+        debug('found an unexpired saved session');
+
         this._changeState(STATE_AUTHENTICATED, user, token);
       } else {
+        debug('stored session was expired');
+
         this._changeState(STATE_UNAUTHENTICATED);
       }
     }
 
     _maybeUpdateStoredSession(state, user, token) {
+      debugf('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
+
       if (state === STATE_UNAUTHENTICATED) {
+        debug('state is unauthenticated, clearing stored session');
         this.storageHandler.clearSessionState(this.config.clientId);
       } else if (!!user && !!token) {
+        debug('storing session', redactUser(user), redactToken(token));
         const serialized = serializeSessionState(user, token);
         this.storageHandler.saveSessionState(this.config.clientId, serialized);
       }
@@ -1031,12 +1258,14 @@ this.BYU.oauth.implicit = (function (exports) {
 
   async function _handleAuthenticationCallback(config, location, hash, storage) {
     if (hash.has('error')) {
+      error('Got oauth error in URL hash');
       throw new OAuthError(hash.get('error'), hash.get('error_description'), hash.get('error_uri'));
     }
 
     const oauthCsrfToken = hash.get('state');
     const storedState = storage.getOAuthState(config.clientId);
     storage.clearOAuthState(config.clientId);
+    debug('checking oauth state token');
 
     const pageState = _validateAndGetStoredState(storedState, oauthCsrfToken);
 
@@ -1044,6 +1273,7 @@ this.BYU.oauth.implicit = (function (exports) {
     const expiresIn = Number(hash.get('expires_in'));
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
     const authHeader = `Bearer ${accessToken}`;
+    debug('got token', redactBearerToken(accessToken), 'which expires in', expiresIn, 'seconds');
     const userInfo = await _fetchUserInfo(authHeader);
 
     const user = _processUserInfo(userInfo);
@@ -1058,8 +1288,11 @@ this.BYU.oauth.implicit = (function (exports) {
     };
   }
 
+  const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
+
   async function _fetchUserInfo(authHeader) {
-    const resp = await fetch('https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid', {
+    debug('fetching user info from', USER_INFO_URL);
+    const resp = await fetch(USER_INFO_URL, {
       method: 'GET',
       headers: new Headers({
         'Accept': 'application/json',
@@ -1067,15 +1300,20 @@ this.BYU.oauth.implicit = (function (exports) {
       }),
       mode: 'cors'
     });
+    debug('got status', resp.status);
 
     if (resp.status !== 200) {
       const body = await resp.text();
 
       if (resp.status === 403) {
+        debug('got forbidden error');
+
         if (body.includes('<ams:code>900908</ams:code>')) {
+          debug('client app isn\'t subscribed to OpenID UserInfo endpoint');
           console.error(`DEVELOPER ERROR: You may not be subscribed to the OpenID UserInfo endpoint. Please visit https://api.byu.edu/store/apis/info?name=OpenID-Userinfo&version=v1&provider=BYU%2Fjmooreoa to subscribe.`);
-          throw new OAuthError('not-subscribe-to-user-info', 'This page has an authentication configuration error. Developers, see the console for details.');
+          throw new OAuthError('not-subscribed-to-user-info', 'This page has an authentication configuration error. Developers, see the console for details.');
         } else {
+          error('invalid oauth bearer token');
           throw new OAuthError('invalid-oauth-token', 'The provided authentication token is invalid. Please try again.');
         }
       }
@@ -1084,7 +1322,9 @@ this.BYU.oauth.implicit = (function (exports) {
       throw new OAuthError('unable-to-get-user-info', 'Unable to fetch user information. Please try again.');
     }
 
-    return await resp.json();
+    const json = await resp.json();
+    debug('successfully got user info', json);
+    return json;
   }
 
   const CLAIMS_PREFIX_RESOURCE_OWNER = 'http://byu.edu/claims/resourceowner_';
@@ -1183,6 +1423,13 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   function _validateAndGetStoredState(storedState, expectedCsrfToken) {
+    debug('validating stored state token. Expecting token', expectedCsrfToken, ', got state', storedState);
+
+    if (!storedState) {
+      error('no stored oauth login state');
+      throw new OAuthError('no-oauth-state', 'Your saved authentication information does not match. Please try again.');
+    }
+
     const {
       e: stateExpiresString,
       c: storedCsrfToken,
@@ -1190,10 +1437,12 @@ this.BYU.oauth.implicit = (function (exports) {
     } = storedState;
 
     if (expectedCsrfToken !== storedCsrfToken) {
+      error('CSRF token mismatch');
       throw new OAuthError('oauth-state-mismatch', 'Your saved authentication information does not match. Please try again.');
     }
 
     if (Number(stateExpiresString) < Date.now()) {
+      error('stored state has expired');
       throw new OAuthError('oauth-state-expired', 'Your login attempt has timed out. Please try again.');
     }
 
@@ -1227,6 +1476,68 @@ this.BYU.oauth.implicit = (function (exports) {
     }, '');
   }
 
+  function logStateChange(state, user, token, error$1) {
+    const logParts = ['state change:', {
+      state,
+      user: redactUser(user),
+      token: token,
+      //redactToken(token),
+      error: error$1
+    }];
+
+    if (error$1) {
+      error(...logParts);
+    } else {
+      info(...logParts);
+    }
+  }
+
+  function redactUser(u) {
+    if (!u) return undefined;
+    return {
+      netId: u.netId,
+      'rest-is-redacted': true
+    };
+  }
+
+  function redactToken(t) {
+    console.log('redacting token', t);
+    if (!t) return undefined;
+    console.log(t);
+    const {
+      bearer,
+      expiresAt,
+      client
+    } = t;
+    console.log(expiresAt);
+    console.log(typeof expiresAt);
+    return {
+      bearer: redactBearerToken(bearer),
+      expiresAt: !!expiresAt ? expiresAt.toISOString() : null,
+      client,
+      'rest-is-redacted': true
+    };
+  }
+
+  function redactBearerToken(b) {
+    if (!b) return undefined;
+    return b.substring(0, 2) + '...redacted...' + b.substring(b.length - 2);
+  }
+
+  function ensureOnlyInstance(obj) {
+    if (SINGLETON_INSTANCE) {
+      const trace = SINGLETON_INSTANCE.___startupTrace;
+      throw new Error('There is already an instance of byu-oauth-implicit running!  Please call `#shutdown()` on that instance before starting a new one. Instance was started at:\n' + trace);
+    }
+
+    obj.___startupTrace = new Error().stack;
+    SINGLETON_INSTANCE = obj;
+  }
+
+  function cleanupOnlyInstance(obj) {
+    SINGLETON_INSTANCE = null;
+  }
+
   /*
    * Copyright 2018 Brigham Young University
    *
@@ -1253,11 +1564,12 @@ this.BYU.oauth.implicit = (function (exports) {
    */
 
   /**
-   *
-   * @param {ImplicitConfig} cfg
+   * @param {ImplicitConfig|ImplicitConfig[]} cfgOrRules
+   * @param location
    */
 
-  async function configure(cfg) {
+  async function configure(cfgOrRules, location = window.location) {
+    const cfg = resolveConfig(cfgOrRules, location);
     const globalConfig = window[GLOBAL_CONFIG_KEY];
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
@@ -1271,6 +1583,33 @@ this.BYU.oauth.implicit = (function (exports) {
 
     const provider = new ImplicitGrantProvider(config, window, document);
     return provider.startup();
+  }
+
+  function resolveConfig(rules, location) {
+    if ('clientId' in rules) {
+      return rules;
+    }
+
+    const keys = Object.keys(rules).filter(function (it) {
+      return it.startsWith('https://') || it.startsWith('http://');
+    });
+
+    if (keys.length === 0) {
+      return rules;
+    }
+
+    const key = keys // order by length of key (most specific), descending
+    .sort(function (a, b) {
+      return b.length - a.length;
+    }).find(function (it) {
+      return location.href.startsWith(it);
+    });
+
+    if (key) {
+      return rules[key];
+    }
+
+    throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
   }
 
   exports.DEFAULT_ISSUER = DEFAULT_ISSUER;

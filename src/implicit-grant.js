@@ -29,10 +29,11 @@ export const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
  */
 
 /**
- *
- * @param {ImplicitConfig} cfg
+ * @param {ImplicitConfig|ImplicitConfig[]} cfgOrRules
+ * @param location
  */
-export async function configure(cfg) {
+export async function configure(cfgOrRules, location = window.location) {
+  const cfg = resolveConfig(cfgOrRules, location);
   const globalConfig = window[GLOBAL_CONFIG_KEY];
 
   const config = Object.assign({
@@ -48,4 +49,26 @@ export async function configure(cfg) {
   const provider = new ImplicitGrantProvider(config, window, document);
 
   return provider.startup();
+}
+
+function resolveConfig(rules, location) {
+  if ('clientId' in rules) {
+    return rules;
+  }
+
+  const keys = Object.keys(rules)
+    .filter(it => it.startsWith('https://') || it.startsWith('http://'));
+
+  if (keys.length === 0) {
+    return rules;
+  }
+
+  const key = keys
+    // order by length of key (most specific), descending
+    .sort((a, b) => b.length - a.length)
+    .find(it => location.href.startsWith(it));
+  if (key) {
+    return rules[key];
+  }
+  throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`)
 }
