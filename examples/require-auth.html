@@ -24,20 +24,24 @@
   <link rel="modulepreload" href="https://cdn.byu.edu/byu-theme-components/2.x.x/components.min.js">
   <link rel="modulepreload" href="./header.js">
 
-  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css"
-        as="style" crossorigin="anonymous"/>
+  <link rel="preload"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css"
+        as="style"
+        integrity="sha256-UzFD2WYH2U1dQpKDjjZK72VtPeWP50NoJjd26rnAdUI=" crossorigin="anonymous"/>
 
   <title>API Calls - byu-browser-oauth-implicit Examples</title>
-  <script defer src="https://cdn.byu.edu/byu-theme-components/2.x.x/byu-theme-components.min.js"></script>
+  <script async src="https://cdn.byu.edu/byu-theme-components/2.x.x/byu-theme-components.min.js"></script>
   <link rel="stylesheet" href="https://cdn.byu.edu/byu-theme-components/2.x.x/byu-theme-components.min.css" media="all">
   <link rel="stylesheet" href="examples.css" media="all">
 
   <link rel="icon" href="https://cdn.byu.edu/shared-icons/latest/favicons/favicon.ico"/>
 
-
   <script type="module">
-    import {configure} from '../dist/implicit-grant.js';
+      import {configure} from 'https://cdn.byu.edu/browser-oauth-implicit/experimental/debug-log/implicit-grant.min.js';
 
+      configure({
+          clientId: 'foobar'
+      });
   </script>
 </head>
 <body>
@@ -56,12 +60,14 @@
   <h2>Demo under development</h2>
 </main>
 <byu-footer></byu-footer>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css"
-      integrity="sha256-UzFD2WYH2U1dQpKDjjZK72VtPeWP50NoJjd26rnAdUI=" crossorigin="anonymous"/>
 <script type="module">
     import {enhanceHeader} from "./header.js";
 
     enhanceHeader('require-auth.html');
 </script>
+
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css"
+      integrity="sha256-UzFD2WYH2U1dQpKDjjZK72VtPeWP50NoJjd26rnAdUI=" crossorigin="anonymous"/>
 </body>
 </html>
