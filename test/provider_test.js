@@ -82,10 +82,10 @@ describe('implicit grant provider', function () {
       warn: console.warn,
       error: console.error
     };
-    // console.log = sinon.stub();
-    // console.warn = sinon.stub();
-    // console.info = sinon.stub();
-    // console.error = sinon.stub();
+    console.log = sinon.stub();
+    console.warn = sinon.stub();
+    console.info = sinon.stub();
+    console.error = sinon.stub();
 
     fetch = sinon.stub().resolves({
       status: 200,

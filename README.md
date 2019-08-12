@@ -168,7 +168,7 @@ In order to get the authentication status, user information, and OAuth tokens,
 you can use a [AuthenticationObserver](https://github.com/byuweb/byu-browser-oauth). 
 This is a provider-agnostic interface for handling OAuth sessions and user information.
 
-For detailed, authoritative documentation, visit [https://github.com/byuweb/byu-browser-oauth]( https://github.com/byuweb/byu-browser-oauth).
+For detailed, authoritative documentation, visit [https://github.com/byuweb/byu-browser-oauth](https://github.com/byuweb/byu-browser-oauth).
 
 ## Installing
 
