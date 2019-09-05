@@ -46,6 +46,9 @@ describe('implicit-grant#configure', () => {
 
   describe('requires parameter', () => {
     describe('clientId', () => {
+      it('cleanly fails if empty config and no window config', () => {
+        return expect(configure()).to.be.rejectedWith(/clientId/);
+      });
       it('fails if missing from single config', () => {
         return expect(configure({})).to.be.rejectedWith(/clientId/);
       });

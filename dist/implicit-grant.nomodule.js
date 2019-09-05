@@ -1564,7 +1564,7 @@ this.BYU.oauth.implicit = (function (exports) {
    */
 
   /**
-   * @param {ImplicitConfig|ImplicitConfig[]} cfgOrRules
+   * @param {ImplicitConfig|ImplicitConfig[]|undefined} cfgOrRules
    * @param location
    */
 
@@ -1586,6 +1586,10 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   function resolveConfig(rules, location) {
+    if (!rules) {
+      return {};
+    }
+
     if ('clientId' in rules) {
       return rules;
     }

@@ -29,7 +29,7 @@ export const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
  */
 
 /**
- * @param {ImplicitConfig|ImplicitConfig[]} cfgOrRules
+ * @param {ImplicitConfig|ImplicitConfig[]|undefined} cfgOrRules
  * @param location
  */
 export async function configure(cfgOrRules, location = window.location) {
@@ -52,6 +52,10 @@ export async function configure(cfgOrRules, location = window.location) {
 }
 
 function resolveConfig(rules, location) {
+  if (!rules) {
+    return {};
+  }
+
   if ('clientId' in rules) {
     return rules;
   }
