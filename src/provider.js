@@ -364,8 +364,8 @@ export class ImplicitGrantProvider {
 
   _maybeUpdateStoredSession(state, user, token) {
     log.debugf('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
-    if (state === authn.STATE_UNAUTHENTICATED) {
-      log.debug('state is unauthenticated, clearing stored session');
+    if (state === authn.STATE_UNAUTHENTICATED || state === authn.STATE_REFRESHING || state === authn.STATE_EXPIRED) {
+      log.debug('state is unauthenticated or expired, clearing stored session');
       this.storageHandler.clearSessionState(this.config.clientId);
     } else if (!!user && !!token) {
       log.debug('storing session', redactUser(user), redactToken(token));

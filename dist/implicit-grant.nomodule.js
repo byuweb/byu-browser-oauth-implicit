@@ -1171,8 +1171,8 @@ this.BYU.oauth.implicit = (function (exports) {
     _maybeUpdateStoredSession(state, user, token) {
       debugf('updating stored session: state=%s hasUser=%s, hasToken=%s', state, !!user, !!token);
 
-      if (state === STATE_UNAUTHENTICATED) {
-        debug('state is unauthenticated, clearing stored session');
+      if (state === STATE_UNAUTHENTICATED || state === STATE_REFRESHING || state === STATE_EXPIRED) {
+        debug('state is unauthenticated or expired, clearing stored session');
         this.storageHandler.clearSessionState(this.config.clientId);
       } else if (!!user && !!token) {
         debug('storing session', redactUser(user), redactToken(token));
