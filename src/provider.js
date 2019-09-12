@@ -167,7 +167,7 @@ export class ImplicitGrantProvider {
         log.debug('silently refreshing token to work around odd identity server issue');
       }
       this._changeState(authn.STATE_REFRESHING, this.store.user, this.store.token);
-      this._schedulePeriodic(() => this.startRefresh('iframe'));
+      this._scheduleRefresh();
     } else if (definitelyExpired) {
       // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
       this._changeState(authn.STATE_EXPIRED, this.store.user, this.store.token);
@@ -180,27 +180,25 @@ export class ImplicitGrantProvider {
       log.debug('refresh already scheduled');
       return;
     }
-    return this.__refreshTask = this._schedulePeriodic(() =>  {
+    // Wait a few seconds before triggering the actual refresh, allowing for clock
+    // skew with WSO2
+    return this.__refreshTask = setTimeout(() =>  {
       this.__refreshTask = null;
       this.startRefresh('iframe')
-    });
+    }, 5000);
   }
 
   _scheduleExpirationCheck(expirationTimeInMs) {
     if (this.__expirationTask) {
       clearTimeout(this.__expirationTask);
     }
-    return this.__expirationTask = this._schedulePeriodic(() =>  {
-      this.__expirationTask = null;
-      this._checkExpired(expirationTimeInMs);
-    });
-  }
-
-  _schedulePeriodic(task) {
     // Simply using setTimeout for an hour in the future
     // doesn't work; setTimeout isn't that precise over that long of a period.
     // So re-check every five seconds until we're past the expiration time
-    return setTimeout(task, 5000);
+    return this.__expirationTask = setTimeout(() =>  {
+      this.__expirationTask = null;
+      this._checkExpired(expirationTimeInMs);
+    }, 5000);
   }
 
   get _location() {

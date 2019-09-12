@@ -898,8 +898,6 @@ class ImplicitGrantProvider {
   }
 
   _checkExpired(expirationTimeInMs) {
-    var _this = this;
-
     debug('checking expiration time');
     const expiresInMs = expirationTimeInMs - Date.now();
     const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
@@ -925,9 +923,7 @@ class ImplicitGrantProvider {
 
       this._changeState(STATE_REFRESHING, this.store.user, this.store.token);
 
-      this._schedulePeriodic(function () {
-        return _this.startRefresh('iframe');
-      });
+      this._scheduleRefresh();
     } else if (definitelyExpired) {
       // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
       this._changeState(STATE_EXPIRED, this.store.user, this.store.token);
@@ -935,41 +931,39 @@ class ImplicitGrantProvider {
   }
 
   _scheduleRefresh() {
-    var _this2 = this;
+    var _this = this;
 
     info('scheduling auto-refresh');
 
     if (this.__refreshTask) {
       debug('refresh already scheduled');
       return;
-    }
+    } // Wait a few seconds before triggering the actual refresh, allowing for clock
+    // skew with WSO2
 
-    return this.__refreshTask = this._schedulePeriodic(function () {
-      _this2.__refreshTask = null;
 
-      _this2.startRefresh('iframe');
-    });
+    return this.__refreshTask = setTimeout(function () {
+      _this.__refreshTask = null;
+
+      _this.startRefresh('iframe');
+    }, 5000);
   }
 
   _scheduleExpirationCheck(expirationTimeInMs) {
-    var _this3 = this;
+    var _this2 = this;
 
     if (this.__expirationTask) {
       clearTimeout(this.__expirationTask);
-    }
-
-    return this.__expirationTask = this._schedulePeriodic(function () {
-      _this3.__expirationTask = null;
-
-      _this3._checkExpired(expirationTimeInMs);
-    });
-  }
-
-  _schedulePeriodic(task) {
-    // Simply using setTimeout for an hour in the future
+    } // Simply using setTimeout for an hour in the future
     // doesn't work; setTimeout isn't that precise over that long of a period.
     // So re-check every five seconds until we're past the expiration time
-    return setTimeout(task, 5000);
+
+
+    return this.__expirationTask = setTimeout(function () {
+      _this2.__expirationTask = null;
+
+      _this2._checkExpired(expirationTimeInMs);
+    }, 5000);
   }
 
   get _location() {
@@ -1033,7 +1027,7 @@ class ImplicitGrantProvider {
   }
 
   startLogin(displayType = 'window') {
-    var _this4 = this;
+    var _this3 = this;
 
     infof('Starting login. mode=%s', displayType);
     const {
@@ -1081,7 +1075,7 @@ class ImplicitGrantProvider {
         // report problem
         iframe.parentNode.removeChild(iframe);
 
-        _this4._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+        _this3._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
       }
     };
 
