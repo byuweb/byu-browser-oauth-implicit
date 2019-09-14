@@ -887,9 +887,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
           this._changeState(STATE_ERROR, undefined, undefined, err);
         }
-      }
-
-      if (this.hasStoredSession()) {
+      } else if (this.hasStoredSession()) {
         debug('Has stored session');
 
         this._updateStateFromStorage();

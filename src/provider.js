@@ -132,7 +132,7 @@ export class ImplicitGrantProvider {
         log.error('OAuth Error', err);
         this._changeState(authn.STATE_ERROR, undefined, undefined, err);
       }
-    } if (this.hasStoredSession()) {
+    } else if (this.hasStoredSession()) {
       log.debug('Has stored session');
       this._updateStateFromStorage();
     } else {
