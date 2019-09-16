@@ -817,12 +817,11 @@ class ImplicitGrantProvider {
       }
 
       return;
-    } // If we're inside the "refresh" iframe
+    }
 
+    const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID); // If we're inside the "refresh" iframe
 
-    const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID);
-
-    if (iframe) {
+    if (iframe && iframe.contentWindow === this.window) {
       if (source) {
         // event was triggered by a child, so ignore since we're inside a child
         return;

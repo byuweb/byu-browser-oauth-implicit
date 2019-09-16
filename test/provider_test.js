@@ -36,13 +36,22 @@ describe('implicit grant provider', function () {
   const realFetch = fetch;
 
   beforeEach(function () {
+    window = {
+      open: sinon.stub(),
+      close: sinon.stub(),
+      location: {
+        href: fakeUrl
+      },
+      setTimeout: sinon.stub()
+    };
     event = {
       initCustomEvent: sinon.stub()
     };
     element = {
       parentNode: {
         removeChild: sinon.stub()
-      }
+      },
+      contentWindow: window
     };
     config = {
       clientId: 'aabbcc',
@@ -58,14 +67,6 @@ describe('implicit grant provider', function () {
       body: {
         appendChild: sinon.stub()
       }
-    };
-    window = {
-      open: sinon.stub(),
-      close: sinon.stub(),
-      location: {
-        href: fakeUrl
-      },
-      setTimeout: sinon.stub()
     };
     storage = {
       saveOAuthState: sinon.stub(),
