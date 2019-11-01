@@ -491,7 +491,7 @@ async function _fetchUserInfo(authHeader) {
       log.debug('got forbidden error');
       if (body.includes('<ams:code>900908</ams:code>')) {
         log.debug('client app isn\'t subscribed to OpenID UserInfo endpoint');
-        console.error(`DEVELOPER ERROR: You may not be subscribed to the OpenID UserInfo endpoint. Please visit https://api.byu.edu/store/apis/info?name=OpenID-Userinfo&version=v1&provider=BYU%2Fjmooreoa to subscribe.`);
+        log.error(`DEVELOPER ERROR: You may not be subscribed to the OpenID UserInfo endpoint. Please visit https://api.byu.edu/store/apis/info?name=OpenID-Userinfo&version=v1&provider=BYU%2Fjmooreoa to subscribe.`);
         throw new OAuthError(
           'not-subscribed-to-user-info',
           'This page has an authentication configuration error. Developers, see the console for details.'
@@ -504,7 +504,7 @@ async function _fetchUserInfo(authHeader) {
         );
       }
     }
-    console.error('Error getting OAuth User Info. Status Code:', resp.status, 'Response:\n', body);
+    log.error('Error getting OAuth User Info. Status Code:', resp.status, 'Response:\n', body);
     throw new OAuthError(
       'unable-to-get-user-info',
       'Unable to fetch user information. Please try again.'
@@ -682,12 +682,9 @@ function redactUser(u) {
 }
 
 function redactToken(t) {
-  console.log('redacting token', t);
+  log.debug('redacting token', t);
   if (!t) return undefined;
-  console.log(t);
   const {bearer, expiresAt, client} = t;
-  console.log(expiresAt);
-  console.log(typeof expiresAt);
   return {
     bearer: redactBearerToken(bearer),
     expiresAt: !!expiresAt ? expiresAt.toISOString() : null,

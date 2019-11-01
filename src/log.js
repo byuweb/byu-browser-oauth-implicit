@@ -4,7 +4,7 @@ const LEVEL_INFO = { priority: 10, name: "info", run: handleInfo };
 const LEVEL_ERROR = { priority: 100, name: "error", run: handleError };
 
 const ALL_LEVELS = [LEVEL_TRACE, LEVEL_DEBUG, LEVEL_INFO, LEVEL_ERROR];
-const DEFAULT_LEVEL = LEVEL_INFO;
+const DEFAULT_LEVEL = LEVEL_ERROR;
 
 export function debug(...args) {
   log(LEVEL_DEBUG, ...args);
