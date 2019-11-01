@@ -787,6 +787,36 @@ this.BYU.oauth.implicit = (function (exports) {
       });
 
       _dispatchEvent(this, EVENT_STATE_CHANGE, this.store);
+    }
+
+    _checkPopupOpener() {
+      try {
+        const href = this.window.opener.location.href;
+
+        if (href.indexOf(this.config.callbackUrl) === 0) {
+          return this.window.opener;
+        }
+      } catch (e) {// Failed to get window.opener.location.href, so we must have been opened
+        // from a different origin.
+        // Fall through to the "return false" outside this try/catch block
+      }
+
+      return false;
+    }
+
+    _checkIframeOpener() {
+      try {
+        const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID);
+
+        if (iframe && iframe.contentWindow === this.window) {
+          return iframe;
+        }
+      } catch (e) {// Failed to access window.parent info, so we must be in an iframe from a different
+        // origin.
+        // Fall through to the "return false" outside this try/catch block
+      }
+
+      return false;
     } // Separate state change listener, because state change events
     // might come from child iframe/popup window
 
@@ -797,9 +827,12 @@ this.BYU.oauth.implicit = (function (exports) {
       token,
       source
     }) {
-      debug('in handleStateChange', state); // If this is a popup
+      debug('in handleStateChange', state);
 
-      if (this.window.opener) {
+      const opener = this._checkPopupOpener(); // If this is a popup
+
+
+      if (opener) {
         // We're inside a child re-authentication popup
         if (source) {
           // event was triggered by a child, so ignore since we're inside a child
@@ -808,7 +841,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
         debug('dispatching event to parent'); // Pass event along to parent
 
-        _dispatchEvent(this.window.opener, EVENT_STATE_CHANGE, {
+        _dispatchEvent(opener, EVENT_STATE_CHANGE, {
           state,
           token,
           user,
@@ -824,9 +857,10 @@ this.BYU.oauth.implicit = (function (exports) {
         return;
       }
 
-      const iframe = this.window.parent.document.getElementById(CHILD_IFRAME_ID); // If we're inside the "refresh" iframe
+      const iframe = this._checkIframeOpener(); // If we're inside a "refresh" iframe
 
-      if (iframe && iframe.contentWindow === this.window) {
+
+      if (iframe) {
         if (source) {
           // event was triggered by a child, so ignore since we're inside a child
           return;
