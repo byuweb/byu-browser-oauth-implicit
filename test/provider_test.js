@@ -28,6 +28,7 @@ describe('implicit grant provider', function () {
   let config;
   let document;
   let window;
+  let openerWindow;
   let event;
   let p;
   let tempConsole;
@@ -68,6 +69,11 @@ describe('implicit grant provider', function () {
         appendChild: sinon.stub()
       }
     };
+    openerWindow = {
+      location: { href: fakeUrl },
+      document: document
+    };
+    openerWindow.window = openerWindow;
     storage = {
       saveOAuthState: sinon.stub(),
       getOAuthState: sinon.stub().returns({ e: Date.now() + 1000, c: 'dummystate', s: '' }),
@@ -296,25 +302,25 @@ describe('implicit grant provider', function () {
 
   describe('handleStateChange', () => {
     it('passes message to parent if in popup', () => {
-      window.opener = p;
+      window.opener = openerWindow;
       p.handleStateChange({ state: authn.STATE_AUTHENTICATING })
       expect(document.dispatchEvent).to.have.been.calledWith(event);
       expect(window.close).not.to.have.been.called;
     });
     it('closes window if in popup and authenticated', () => {
-      window.opener = p;
+      window.opener = openerWindow;
       p.handleStateChange({ state: authn.STATE_AUTHENTICATED })
       expect(document.dispatchEvent).to.have.been.calledWith(event);
       expect(window.close).to.have.been.called;
     });
     it('passes message to parent if in iframe', () => {
-      window.parent = p
+      window.parent = openerWindow
       p.handleStateChange({ state: authn.STATE_AUTHENTICATING })
       expect(document.dispatchEvent).to.have.been.calledWith(event);
       expect(element.parentNode.removeChild).not.to.have.been.called;
     });
     it('closes iframe if in iframe and authenticated', () => {
-      window.parent = p;
+      window.parent = openerWindow
       p.handleStateChange({ state: authn.STATE_AUTHENTICATED })
       expect(document.dispatchEvent).to.have.been.calledWith(event);
       expect(element.parentNode.removeChild).to.have.been.called;
