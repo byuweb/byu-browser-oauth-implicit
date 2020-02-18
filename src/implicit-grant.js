@@ -72,7 +72,7 @@ function resolveConfig(rules, location) {
     .sort((a, b) => b.length - a.length)
     .find(it => location.href.startsWith(it));
   if (key) {
-    return rules[key];
+    return Object.assign({ callbackUrl: key }, rules[key]);
   }
   throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`)
 }
