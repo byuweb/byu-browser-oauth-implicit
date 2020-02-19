@@ -685,14 +685,13 @@ var lib_4 = lib.storage;
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-const cookie$1 = new lib_2();
 class StorageHandler {
   saveOAuthState(clientId, state) {
-    cookie$1.setItem(getKey(clientId), JSON.stringify(state));
+    storage.setItem(getKey(clientId), JSON.stringify(state));
   }
 
   getOAuthState(clientId) {
-    const result = cookie$1.getItem(getKey(clientId));
+    const result = storage.getItem(getKey(clientId));
 
     if (!result) {
       return null;
@@ -702,7 +701,7 @@ class StorageHandler {
   }
 
   clearOAuthState(clientId) {
-    cookie$1.removeItem(getKey(clientId));
+    storage.removeItem(getKey(clientId));
   }
 
   saveSessionState(clientId, state) {
@@ -1628,9 +1627,7 @@ function resolveConfig(rules, location) {
   });
 
   if (key) {
-    return Object.assign({
-      callbackUrl: key
-    }, rules[key]);
+    return rules[key];
   }
 
   throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);

@@ -18,22 +18,15 @@
 "use strict";
 
 import storage from 'local-storage-fallback';
-// During initial page load, Firefox "LocalStorage" is wonky if in Private Browsing.
-// Fortunately, the "OAuth State" data is tiny (one date and one 16-character string),
-// so it won't hit any Cookie size limitations.
-// With those factors in mind, we intentionally downgrade to Cookie storage for initial OAuth data storage
-import { CookieStorage } from 'local-storage-fallback';
-
-const cookie = new CookieStorage();
 
 export class StorageHandler {
 
   saveOAuthState(clientId, state) {
-    cookie.setItem(getKey(clientId), JSON.stringify(state));
+    storage.setItem(getKey(clientId), JSON.stringify(state));
   }
 
   getOAuthState(clientId) {
-    const result = cookie.getItem(getKey(clientId));
+    const result = storage.getItem(getKey(clientId));
     if (!result) {
       return null;
     }
@@ -41,13 +34,13 @@ export class StorageHandler {
   }
 
   clearOAuthState(clientId) {
-    cookie.removeItem(getKey(clientId));
+    storage.removeItem(getKey(clientId));
   }
 
   saveSessionState(clientId, state) {
     storage.setItem(getSessionKey(clientId), JSON.stringify(state));
   }
-
+  
   getSessionState(clientId) {
     const key = getSessionKey(clientId);
     const stored = storage.getItem(key);
@@ -56,7 +49,7 @@ export class StorageHandler {
     }
     return JSON.parse(stored);
   }
-
+  
   clearSessionState(clientId) {
     storage.removeItem(getSessionKey(clientId));
   }
