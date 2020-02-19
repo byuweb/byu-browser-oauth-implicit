@@ -22,14 +22,14 @@ import * as url from '../src/url.js';
 describe('url utils', () => {
   describe('parseHash', () => {
     it('Parses hashes into a map', () => {
-      const input = 'foo=bar&bar=baz';
+      const input = 'foo=bar&bar=bag';
       const output = url.parseHash(input);
       expect(output).to.be.instanceOf(Map);
 
       expect(output).to.have.all.keys(['foo', 'bar']);
 
       expect(output.get('foo')).to.equal('bar');
-      expect(output.get('bar')).to.equal('baz');
+      expect(output.get('bar')).to.equal('bag');
 
     });
 
