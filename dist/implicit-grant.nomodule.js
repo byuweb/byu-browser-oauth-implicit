@@ -757,6 +757,7 @@ this.BYU.oauth.implicit = (function (exports) {
    */
   let SINGLETON_INSTANCE;
   const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
+  const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
   const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
   const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed';
@@ -938,9 +939,8 @@ this.BYU.oauth.implicit = (function (exports) {
       const expiresInMs = expirationTimeInMs - Date.now();
       const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
       // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
-      // UPDATE 2020-06-22: It *looks like* this WSO2 bug was fixed. Leaving this comment here in case it breaks again
 
-      const maybeFunkyExpiration = false; // expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
+      const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
 
       if (!definitelyExpired && !maybeFunkyExpiration) {
         this._scheduleExpirationCheck(expirationTimeInMs);
@@ -949,6 +949,14 @@ this.BYU.oauth.implicit = (function (exports) {
       }
 
       if (this.config.autoRefreshOnTimeout) {
+        // If we've expired OR if the WSO2 five-minute grace period was not added, mark the state as refreshing.
+        // Schedule a refresh in an extra 5 seconds to avoid WSO2 clock skew problems.
+        // Existing token *should* have a five-minute grace period after expiration:
+        // a new request will generate a new token, but the old token should still
+        // work during that grace period, so we keep the user and token objects around.
+        if (maybeFunkyExpiration) {
+          debug('silently refreshing token to work around odd identity server issue');
+        }
 
         this._changeState(STATE_REFRESHING, this.store.user, this.store.token);
 

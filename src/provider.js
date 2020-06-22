@@ -178,11 +178,9 @@ export class ImplicitGrantProvider {
     const expiresInMs = expirationTimeInMs - Date.now()
 
     const definitelyExpired = expiresInMs < 0;
-
     // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
     // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
-    // UPDATE 2020-06-22: It *looks like* this WSO2 bug was fixed. Leaving this comment here in case it breaks again
-    const maybeFunkyExpiration = false; // expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
+    const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS;
 
     if (!definitelyExpired && !maybeFunkyExpiration) {
       this._scheduleExpirationCheck(expirationTimeInMs);
