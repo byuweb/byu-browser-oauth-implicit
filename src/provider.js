@@ -18,7 +18,6 @@
 
 import * as log from './log.js';
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
-import {parseHash} from './url.js';
 import {StorageHandler} from "./local-storage.js";
 
 let SINGLETON_INSTANCE;
@@ -145,16 +144,14 @@ export class ImplicitGrantProvider {
     this._changeState(authn.STATE_INDETERMINATE);
 
     const location = this._location;
-    const hash = this._hashParams;
 
-    if (this.isAuthenticationCallback(location.href, hash)) {
+    if (this.isAuthenticationCallback(location)) {
       log.debug('handling authentication callback');
       this._changeState(authn.STATE_AUTHENTICATING);
       try {
         const {state, user, token, error} = await _handleAuthenticationCallback(
           this.config,
           location,
-          hash,
           this.storageHandler
         );
         this._changeState(state, user, token, error);
@@ -240,19 +237,11 @@ export class ImplicitGrantProvider {
     return this.window.location;
   }
 
-  get _hashParams() {
-    return parseHash(this._location.hash);
-  }
+  isAuthenticationCallback(location) {
+    const isCallbackUrl = location.href.indexOf(this.config.callbackUrl) === 0;
+    const hasCode = location.search.includes('code=') && location.search.includes('state=')
 
-  isAuthenticationCallback(href, hash) {
-    const isCallbackUrl = href.indexOf(this.config.callbackUrl) === 0;
-    const hasHash = hash.size !== 0;
-
-    if (!isCallbackUrl || !hasHash) {
-      return false;
-    }
-
-    return hash.has('access_token') || hash.has('error');
+    return isCallbackUrl && hasCode
   }
 
   hasStoredSession() {
@@ -288,11 +277,12 @@ export class ImplicitGrantProvider {
     log.infof('Starting login. mode=%s', displayType);
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
+    const codeVerifier = randomString(64);
 
-    const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
+    const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+    const loginUrl = `https://api.byu.edu/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeVerifier}&code_challenge_method=plain`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -473,23 +463,18 @@ function _dispatchEvent(provider, name, detail) {
   provider.document.dispatchEvent(event);
 }
 
-async function _handleAuthenticationCallback(config, location, hash, storage) {
-  if (hash.has('error')) {
-    log.error('Got oauth error in URL hash');
-    throw new OAuthError(
-      hash.get('error'),
-      hash.get('error_description'),
-      hash.get('error_uri'),
-    );
-  }
+async function _handleAuthenticationCallback(config, location, storage) {
+  const searchParams = new URLSearchParams(location.search);
 
-  const oauthCsrfToken = hash.get('state');
+  const oauthCsrfToken = searchParams.get('state');
   const storedState = storage.getOAuthState(config.clientId);
 
   storage.clearOAuthState(config.clientId);
 
   log.debug('checking oauth state token');
   const pageState = _validateAndGetStoredState(storedState, oauthCsrfToken);
+  const tokenInfo = await _fetchTokenInfo(searchParams.get('code'), config, storedState.v)
+  console.log('TOKEN INFO', tokenInfo)
 
   const accessToken = hash.get('access_token');
   const expiresIn = Number(hash.get('expires_in'));
@@ -508,6 +493,32 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
 }
 
 const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
+
+async function _fetchTokenInfo(code, config, codeVerifier) {
+  log.debug('Exchanging code for token');
+  const tokenUrl = `https://api.byu.edu/token?grant_type=authorization_code&client_id=${config.clientId}&redirect_uri=${encodeURIComponent(config.callbackUrl)}&code=${encodeURIComponent(code)}&code_verifier=${codeVerifier}`;
+  const resp = await fetch(tokenUrl, {
+    method: 'GET',
+    headers: new Headers({'Accept': 'application/json'}),
+    mode: 'no-cors',
+  });
+
+  log.debug('got status', resp.status);
+
+  if (resp.status !== 200) {
+    const body = await resp.text();
+
+    log.error('Error getting OAuth User Info. Status Code:', resp.status, 'Response:\n', body);
+    throw new OAuthError(
+      'unable-to-exchange-code-for-token',
+      'Unable to exchange code for token. Please try again.'
+    );
+  }
+
+  const json = await resp.json();
+  log.debug('successfully got user info', json);
+  return json;
+}
 
 async function _fetchUserInfo(authHeader) {
   log.debug('fetching user info from', USER_INFO_URL);
@@ -666,10 +677,11 @@ function _validateAndGetStoredState(storedState, expectedCsrfToken) {
   return pageState;
 }
 
-function _prepareStoredState(expires, csrfToken, pageState) {
+function _prepareStoredState(expires, csrfToken, codeVerifier, pageState) {
   return {
     e: expires,
     c: csrfToken,
+    v: codeVerifier,
     s: pageState,
   }
 }
@@ -683,12 +695,15 @@ class OAuthError extends Error {
   }
 }
 
-function randomString() {
-  let idArray = new Uint32Array(3);
-  const crypto = window.crypto || window.msCrypto;
-  crypto.getRandomValues(idArray);
+const allowableRandomChars = [...'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'];
+const randomCharRangeConvert = allowableRandomChars.length / 2**8; // Using Uint8Array for getRandomValues
 
-  return idArray.reduce((str, cur) => str + cur.toString(16), '');
+function randomString(length) {
+  const randomArray = new Uint8Array(length || 24);
+  const crypto = window.crypto || window.msCrypto;
+  crypto.getRandomValues(randomArray);
+
+  return randomArray.reduce((str, cur) => str + allowableRandomChars[Math.floor(cur * randomCharRangeConvert)], '');
 }
 
 function logStateChange(state, user, token, error) {
