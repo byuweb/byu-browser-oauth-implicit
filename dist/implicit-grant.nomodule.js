@@ -1130,7 +1130,14 @@ this.BYU.oauth.implicit = (function (exports) {
     startLogout() {
       info('starting logout');
       this.storageHandler.clearSessionState(this.config.clientId);
-      const logoutUrl = 'http://api.byu.edu/logout?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+      let logoutUrl = 'https://api.byu.edu/logout';
+
+      if (this.config.logoutRedirect === undefined) {
+        logoutUrl += '?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+      } else if (this.config.logoutRedirect) {
+        logoutUrl += '?redirect_url=' + encodeURIComponent(this.config.logoutRedirect);
+      }
+
       info('logging out by redirecting to', logoutUrl);
       this.window.location = logoutUrl; //https://api.byu.edu/revoke
       //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.

@@ -336,7 +336,12 @@ export class ImplicitGrantProvider {
   startLogout() {
     log.info('starting logout');
     this.storageHandler.clearSessionState(this.config.clientId);
-    const logoutUrl = 'http://api.byu.edu/logout?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+    let logoutUrl = 'https://api.byu.edu/logout';
+    if (this.config.logoutRedirect === undefined) {
+      logoutUrl += '?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+    } else if (this.config.logoutRedirect) {
+      logoutUrl += '?redirect_url=' + encodeURIComponent(this.config.logoutRedirect);
+    }
     log.info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl;
     //https://api.byu.edu/revoke
