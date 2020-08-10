@@ -1425,8 +1425,8 @@ this.BYU.oauth.implicit = (function (exports) {
   function _processUserInfo(userInfo) {
     const roClaims = getClaims(userInfo, CLAIMS_PREFIX_RESOURCE_OWNER);
     const familyNamePosition = roClaims.surname_position;
-    const givenName = userInfo.given_name;
-    const familyName = userInfo.family_name;
+    const givenName = roClaims.preferred_first_name;
+    const familyName = roClaims.surname;
     const displayName = familyNamePosition === 'F' ? `${familyName} ${givenName}` : `${givenName} ${familyName}`;
     return {
       personId: roClaims.person_id,
