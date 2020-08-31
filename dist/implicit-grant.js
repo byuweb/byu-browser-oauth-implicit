@@ -787,12 +787,13 @@ class ImplicitGrantProvider {
 
   _checkPopupOpener() {
     try {
-      const href = this.window.opener.location.href;
+      const origin = this.window.opener.location.origin;
 
-      if (href.indexOf(this.config.callbackUrl) === 0) {
+      if (origin === new URL(this.config.callbackUrl).origin) {
+        // Origins match
         return this.window.opener;
       }
-    } catch (e) {// Failed to get window.opener.location.href, so we must have been opened
+    } catch (e) {// Failed to get window.opener.location.origin, so we must have been opened
       // from a different origin.
       // Fall through to the "return false" outside this try/catch block
     }

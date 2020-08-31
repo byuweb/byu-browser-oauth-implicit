@@ -23,6 +23,7 @@ chai.use(sinonChai);
 chai.use(chaiAsPromised);
 
 const fakeUrl = 'https://example.com/spa';
+const fakeOrigin = (new URL(fakeUrl)).origin
 
 describe('implicit grant provider', function () {
   let config;
@@ -41,7 +42,8 @@ describe('implicit grant provider', function () {
       open: sinon.stub(),
       close: sinon.stub(),
       location: {
-        href: fakeUrl
+        href: fakeUrl,
+        origin: fakeOrigin
       },
       setTimeout: sinon.stub()
     };
@@ -70,7 +72,7 @@ describe('implicit grant provider', function () {
       }
     };
     openerWindow = {
-      location: { href: fakeUrl },
+      location: { href: fakeUrl, origin: fakeOrigin },
       document: document
     };
     openerWindow.window = openerWindow;
@@ -283,7 +285,7 @@ describe('implicit grant provider', function () {
     it('clears session and redirects window', () => {
       p.startLogout();
       expect(storage.clearSessionState).to.have.been.called;
-      expect(window.location).to.eql('http://api.byu.edu/logout?redirect_url=' + encodeURIComponent('https://example.com/spa'))
+      expect(window.location).to.eql('https://api.byu.edu/logout?redirect_url=' + encodeURIComponent('https://example.com/spa'))
     })
   });
 
