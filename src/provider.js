@@ -56,8 +56,8 @@ export class ImplicitGrantProvider {
 
   _checkPopupOpener() {
     try {
-      const href = this.window.opener.location.href
-      if (href.indexOf(this.config.callbackUrl) === 0) {
+      const origin = this.window.opener.location.origin
+      if (origin === (new URL(this.config.callbackUrl).origin)) {
         return this.window.opener
       }
     } catch (e) {
