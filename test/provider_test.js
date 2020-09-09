@@ -285,7 +285,7 @@ describe('implicit grant provider', function () {
     it('clears session and redirects window', () => {
       p.startLogout();
       expect(storage.clearSessionState).to.have.been.called;
-      expect(window.location).to.eql('https://api.byu.edu/logout?redirect_url=' + encodeURIComponent('https://example.com/spa'))
+      expect(window.location).to.eql('https://api.byu.edu/logout?redirect_url=' + encodeURIComponent('https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(fakeUrl)))
     })
   });
 
