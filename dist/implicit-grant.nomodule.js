@@ -169,14 +169,9 @@ this.BYU.oauth.implicit = (function (exports) {
    */
   function parseHash(hash) {
     debug('parsing hash', hash);
-    if (!hash) return new Map();
-    let subHash = hash;
+    if (!hash) return new Map(); // strip leading "#" or "#/"
 
-    if (hash.startsWith('#')) {
-      subHash = hash.substr(1);
-    }
-
-    const keyValues = subHash.split('&').map(function (it) {
+    const keyValues = hash.replace(/^#\/?/, '').split('&').map(function (it) {
       return it.split('=', 2);
     });
     return new Map(keyValues);
