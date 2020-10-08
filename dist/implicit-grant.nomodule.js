@@ -169,14 +169,9 @@ this.BYU.oauth.implicit = (function (exports) {
    */
   function parseHash(hash) {
     debug('parsing hash', hash);
-    if (!hash) return new Map();
-    let subHash = hash;
+    if (!hash) return new Map(); // strip leading "#" or "#/"
 
-    if (hash.startsWith('#')) {
-      subHash = hash.substr(1);
-    }
-
-    const keyValues = subHash.split('&').map(function (it) {
+    const keyValues = hash.replace(/^#\/?/, '').split('&').map(function (it) {
       return it.split('=', 2);
     });
     return new Map(keyValues);
@@ -792,12 +787,13 @@ this.BYU.oauth.implicit = (function (exports) {
 
     _checkPopupOpener() {
       try {
-        const href = this.window.opener.location.href;
+        const origin = this.window.opener.location.origin;
 
-        if (href.indexOf(this.config.callbackUrl) === 0) {
+        if (origin === new URL(this.config.callbackUrl).origin) {
+          // Origins match
           return this.window.opener;
         }
-      } catch (e) {// Failed to get window.opener.location.href, so we must have been opened
+      } catch (e) {// Failed to get window.opener.location.origin, so we must have been opened
         // from a different origin.
         // Fall through to the "return false" outside this try/catch block
       }
@@ -1129,11 +1125,15 @@ this.BYU.oauth.implicit = (function (exports) {
 
     startLogout() {
       info('starting logout');
-      this.storageHandler.clearSessionState(this.config.clientId);
-      const logoutUrl = 'http://api.byu.edu/logout?redirect_url=' + encodeURIComponent(this.config.callbackUrl);
+      this.storageHandler.clearSessionState(this.config.clientId); // Need to ensure BOTH api.byu.edu and cas.byu.edu clean out their sessions
+      // With current config of those two sites, to have that full clean out AND a final "where to go after logout"
+      // redirect, we need to manually wrap them all together
+
+      const logoutRedirect = this.config.logoutRedirect === undefined ? this.config.callbackUrl : this.config.logoutRedirect;
+      const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect);
+      const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
       info('logging out by redirecting to', logoutUrl);
-      this.window.location = logoutUrl; //https://api.byu.edu/revoke
-      //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
+      this.window.location = logoutUrl; //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
       // const url = `https://api.byu.edu/revoke`;
       // const form = new URLSearchParams();
       // form.set('token', store.token.bearer);
@@ -1418,8 +1418,8 @@ this.BYU.oauth.implicit = (function (exports) {
   function _processUserInfo(userInfo) {
     const roClaims = getClaims(userInfo, CLAIMS_PREFIX_RESOURCE_OWNER);
     const familyNamePosition = roClaims.surname_position;
-    const givenName = userInfo.given_name;
-    const familyName = userInfo.family_name;
+    const givenName = roClaims.preferred_first_name;
+    const familyName = roClaims.surname;
     const displayName = familyNamePosition === 'F' ? `${familyName} ${givenName}` : `${givenName} ${familyName}`;
     return {
       personId: roClaims.person_id,
