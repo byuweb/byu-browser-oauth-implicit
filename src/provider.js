@@ -23,7 +23,6 @@ import {StorageHandler} from "./local-storage.js";
 let SINGLETON_INSTANCE;
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
-const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 export const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed'
 
@@ -174,63 +173,27 @@ export class ImplicitGrantProvider {
 
     const expiresInMs = expirationTimeInMs - Date.now()
 
-    const definitelyExpired = expiresInMs < 0;
-    // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
-    // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
-    // BUT there's yet another bug in WSO2 where sometimes the authentication response *always* says the expiration is 60 minutes away,
-    // even if it's less than 60 minutes away. So we only do this "maybeFunkyExpiration" *once* per token initialization
-    const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS && !this._alreadyDidFunkyCheck;
+    if (expiresInMs > (30 * 1000)) { // 30 second buffer before token actually expires
+      if (this.__expirationTask) {
+        clearTimeout(this.__expirationTask);
+      }
+      // Simply using setTimeout for an hour in the future
+      // doesn't work; setTimeout isn't that precise over that long of a period.
+      // So re-check every five seconds until we're past the expiration time
+      this.__expirationTask = setTimeout(() =>  {
+        this.__expirationTask = null;
+        this._checkExpired(expirationTimeInMs);
+      }, 5000);
 
-    // *After* the "maybeFunky" check, update _alreadyDidFunkyCheck based on whether the current token is expired
-    this._alreadyDidFunkyCheck = !definitelyExpired;
-
-    if (!definitelyExpired && !maybeFunkyExpiration) {
-      this._scheduleExpirationCheck(expirationTimeInMs);
       return;
     }
 
     if (this.config.autoRefreshOnTimeout) {
-      // If we've expired OR if the WSO2 five-minute grace period was not added, mark the state as refreshing.
-      // Schedule a refresh in an extra 5 seconds to avoid WSO2 clock skew problems.
-      // Existing token *should* have a five-minute grace period after expiration:
-      // a new request will generate a new token, but the old token should still
-      // work during that grace period, so we keep the user and token objects around.
-      if (maybeFunkyExpiration) {
-        log.debug('silently refreshing token to work around odd identity server issue');
-      }
-      this._changeState(authn.STATE_REFRESHING, this.store.user, this.store.token);
-      this._scheduleRefresh();
-    } else if (definitelyExpired) {
+      this.startRefresh('iframe');
+    } else {
       // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
       this._changeState(authn.STATE_EXPIRED, this.store.user, this.store.token);
     }
-  }
-
-  _scheduleRefresh() {
-    log.info('scheduling auto-refresh');
-    if (this.__refreshTask) {
-      log.debug('refresh already scheduled');
-      return;
-    }
-    // Wait a few seconds before triggering the actual refresh, allowing for clock
-    // skew with WSO2
-    return this.__refreshTask = setTimeout(() =>  {
-      this.__refreshTask = null;
-      this.startRefresh('iframe')
-    }, 5000);
-  }
-
-  _scheduleExpirationCheck(expirationTimeInMs) {
-    if (this.__expirationTask) {
-      clearTimeout(this.__expirationTask);
-    }
-    // Simply using setTimeout for an hour in the future
-    // doesn't work; setTimeout isn't that precise over that long of a period.
-    // So re-check every five seconds until we're past the expiration time
-    return this.__expirationTask = setTimeout(() =>  {
-      this.__expirationTask = null;
-      this._checkExpired(expirationTimeInMs);
-    }, 5000);
   }
 
   get _location() {
@@ -239,9 +202,9 @@ export class ImplicitGrantProvider {
 
   isAuthenticationCallback(location) {
     const isCallbackUrl = location.href.indexOf(this.config.callbackUrl) === 0;
-    const hasCode = location.search.includes('code=') && location.search.includes('state=')
+    const hasCode = location.search && location.search.includes('code=') && location.search.includes('state=')
 
-    return isCallbackUrl && hasCode
+    return !!(isCallbackUrl && hasCode)
   }
 
   hasStoredSession() {
@@ -277,12 +240,12 @@ export class ImplicitGrantProvider {
     log.infof('Starting login. mode=%s', displayType);
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
-    const codeVerifier = randomString(64);
+    const codeVerifier = randomString(128);
 
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `https://api.byu.edu/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeVerifier}&code_challenge_method=plain`;
+    const loginUrl = `${this.config.pkceBaseUrl}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeVerifier}&code_challenge_method=plain`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -356,9 +319,51 @@ export class ImplicitGrantProvider {
     // });
   }
 
-  startRefresh(displayType = 'iframe') {
+  async startRefresh(displayType = 'iframe') {
     log.infof('starting refresh. displayType=%s', displayType);
-    this.startLogin(displayType);
+
+    // Save copy of current info before triggering changeState
+    const token = Object.assign({}, this.store.token)
+    const user = Object.assign({}, this.store.user)
+
+    // Also pass yet another isolated copy to changeState
+    this._changeState(authn.STATE_REFRESHING, Object.assign({}, this.store.user), Object.assign({}, this.store.token));
+
+    if (displayType !== 'iframe') {
+      this.startLogin(displayType);
+      return;
+    }
+
+    // If we have a refresh token, then try that before doing the more complicated iframe version
+    if (!(token && token.refresh)) {
+      this.startLogin('iframe');
+      return;
+    }
+
+    const tokenUrl = `${this.config.pkceBaseUrl}/token`;
+    const body = new URLSearchParams();
+    body.set('grant_type', 'refresh_token');
+    body.set('client_id', this.config.clientId);
+    body.set('refresh_token', token.refresh)
+
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: new Headers({ 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }),
+      body
+    });
+
+    if (resp.status !== 200) {
+      this.startLogin('iframe');
+      return;
+    }
+
+    const tokenInfo = await resp.json();
+    token.bearer = tokenInfo.access_token;
+    token.refresh = tokenInfo.refresh_token;
+    token.authorizationHeader = `Bearer ${token.bearer}`;
+    token.expiresAt = new Date(Date.now() + (tokenInfo.expires_in * 1000));
+
+    this._changeState(authn.STATE_AUTHENTICATED, user, token);
   }
 
   handleCurrentInfoRequest({callback}) {
@@ -415,6 +420,7 @@ function serializeSessionState(user, token) {
   return {
     ui: smallerUserInfo,
     at: token.bearer,
+    rf: token.refresh,
     ah: token.authorizationHeader,
     ea: token.expiresAt.getTime()
   };
@@ -431,7 +437,7 @@ function deserializeSessionState(state) {
 
   const user = _processUserInfo(userInfo);
   const expiresAt = new Date(state.ea);
-  const token = _processTokenInfo(userInfo, state.at, expiresAt, `Bearer ${state.at}`);
+  const token = _processTokenInfo({ userInfo, accessToken: state.at, expiresAt, authHeader: `Bearer ${state.at}`, refreshToken: state.rf });
   return {user, token};
 }
 
@@ -478,10 +484,10 @@ async function _handleAuthenticationCallback(config, location, storage) {
   log.debug('checking oauth state token');
   const pageState = _validateAndGetStoredState(storedState, oauthCsrfToken);
   const tokenInfo = await _fetchTokenInfo(searchParams.get('code'), config, storedState.v)
-  console.log('TOKEN INFO', tokenInfo)
 
-  const accessToken = hash.get('access_token');
-  const expiresIn = Number(hash.get('expires_in'));
+  const accessToken = tokenInfo.access_token;
+  const refreshToken = tokenInfo.refresh_token;
+  const expiresIn = tokenInfo.expires_in;
   const expiresAt = new Date(Date.now() + (expiresIn * 1000));
   const authHeader = `Bearer ${accessToken}`;
   log.debug('got token', redactBearerToken(accessToken), 'which expires in', expiresIn, 'seconds');
@@ -489,9 +495,7 @@ async function _handleAuthenticationCallback(config, location, storage) {
   const userInfo = await _fetchUserInfo(authHeader);
 
   const user = _processUserInfo(userInfo);
-  const token = _processTokenInfo(userInfo, accessToken, expiresAt, authHeader);
-
-  location.hash = '';
+  const token = _processTokenInfo({ userInfo, accessToken, expiresAt, authHeader, refreshToken });
 
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
@@ -500,14 +504,19 @@ const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=op
 
 async function _fetchTokenInfo(code, config, codeVerifier) {
   log.debug('Exchanging code for token');
-  const tokenUrl = `https://api.byu.edu/token?grant_type=authorization_code&client_id=${config.clientId}&redirect_uri=${encodeURIComponent(config.callbackUrl)}&code=${encodeURIComponent(code)}&code_verifier=${codeVerifier}`;
-  const resp = await fetch(tokenUrl, {
-    method: 'GET',
-    headers: new Headers({'Accept': 'application/json'}),
-    mode: 'no-cors',
-  });
+  const tokenUrl = `${config.pkceBaseUrl}/token`;
+  const body = new URLSearchParams();
+  body.set('grant_type', 'authorization_code');
+  body.set('client_id', config.clientId);
+  body.set('redirect_uri', config.callbackUrl);
+  body.set('code', code);
+  body.set('code_verifier', codeVerifier)
 
-  log.debug('got status', resp.status);
+  const resp = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: new Headers({ 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }),
+    body
+  });
 
   if (resp.status !== 200) {
     const body = await resp.text();
@@ -637,12 +646,13 @@ function _processUserInfo(userInfo) {
   };
 }
 
-function _processTokenInfo(userInfo, accessToken, expiresAt, authHeader) {
+function _processTokenInfo({ userInfo, accessToken, expiresAt, authHeader, refreshToken }) {
   const clientClaims = getClaims(userInfo, CLAIMS_PREFIX_CLIENT);
   const wso2Claims = getClaims(userInfo, CLAIMS_PREFIX_WSO2);
 
   return {
     bearer: accessToken,
+    refresh: refreshToken,
     authorizationHeader: authHeader,
     expiresAt,
     client: {

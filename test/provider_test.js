@@ -175,42 +175,30 @@ describe('implicit grant provider', function () {
 
   describe('isAuthenticationCallback', () => {
     it('handles successful callbacks', () => {
-      const location = fakeUrl;
-      const hash = new Map([['access_token', 'foo']]);
+      const location = new URL(fakeUrl + '?code=blah&state=foo');
 
-      const result = p.isAuthenticationCallback(location, hash);
+      const result = p.isAuthenticationCallback(location);
 
       expect(result).to.be.true;
     });
     it('handles error callbacks', () => {
-      const location = fakeUrl;
-      const hash = new Map([['error', 'foo']]);
+      const location = new URL(fakeUrl + '?error=foo');
 
-      const result = p.isAuthenticationCallback(location, hash);
+      const result = p.isAuthenticationCallback(location);
 
-      expect(result).to.be.true;
+      expect(result).to.be.false;
     });
     it('handles pages on a different URL', () => {
-      const location = 'https://evilsite.com/phisher';
-      const hash = new Map([['access_token', 'foo']]);
+      const location = new URL('https://evilsite.com/phisher?code=blah&state=foo');
 
-      const result = p.isAuthenticationCallback(location, hash);
-
-      expect(result).to.be.false;
-    });
-    it('handles calls with wrong hash', () => {
-      const location = fakeUrl;
-      const hash = new Map([['something', undefined]]);
-
-      const result = p.isAuthenticationCallback(location, hash);
+      const result = p.isAuthenticationCallback(location);
 
       expect(result).to.be.false;
     });
-    it('handles calls with no hash', () => {
-      const location = fakeUrl;
-      const hash = new Map();
+    it('handles calls with no parameters', () => {
+      const location = new URL(fakeUrl);
 
-      const result = p.isAuthenticationCallback(location, hash);
+      const result = p.isAuthenticationCallback(location);
 
       expect(result).to.be.false;
     });
@@ -227,7 +215,7 @@ describe('implicit grant provider', function () {
       })
     })
     it('starts up with authentication callback', async () => {
-      window.location.hash = '#access_token=dummytoken&state=dummystate';
+      window.location.search = 'code=foo&state=blah';
       await p.startup();
       expect(event.initCustomEvent).to.have.been.calledWith(authn.EVENT_STATE_CHANGE, true, false, {
         error: undefined,
@@ -259,7 +247,7 @@ describe('implicit grant provider', function () {
   describe('startLogin', () => {
     it('starts login process', () => {
       p.startLogin();
-      expect(window.location).to.contain('https://api.byu.edu/authorize')
+      expect(window.location).to.contain('/authorize')
       expect(window.open).not.to.have.been.called;
     });
     it('starts login process in popup window', () => {

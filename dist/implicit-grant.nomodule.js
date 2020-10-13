@@ -151,32 +151,6 @@ this.BYU.oauth.implicit = (function (exports) {
   const STATE_EXPIRED = 'expired';
   const STATE_ERROR = 'error';
 
-  /*
-   *  @license
-   *    Copyright 2018 Brigham Young University
-   *
-   *    Licensed under the Apache License, Version 2.0 (the "License");
-   *    you may not use this file except in compliance with the License.
-   *    You may obtain a copy of the License at
-   *
-   *        http://www.apache.org/licenses/LICENSE-2.0
-   *
-   *    Unless required by applicable law or agreed to in writing, software
-   *    distributed under the License is distributed on an "AS IS" BASIS,
-   *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   *    See the License for the specific language governing permissions and
-   *    limitations under the License.
-   */
-  function parseHash(hash) {
-    debug('parsing hash', hash);
-    if (!hash) return new Map(); // strip leading "#" or "#/"
-
-    const keyValues = hash.replace(/^#\/?/, '').split('&').map(function (it) {
-      return it.split('=', 2);
-    });
-    return new Map(keyValues);
-  }
-
   function unwrapExports (x) {
   	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
   }
@@ -752,7 +726,6 @@ this.BYU.oauth.implicit = (function (exports) {
    */
   let SINGLETON_INSTANCE;
   const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
-  const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
   const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
 
   const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed';
@@ -896,9 +869,8 @@ this.BYU.oauth.implicit = (function (exports) {
       this._changeState(STATE_INDETERMINATE);
 
       const location = this._location;
-      const hash = this._hashParams;
 
-      if (this.isAuthenticationCallback(location.href, hash)) {
+      if (this.isAuthenticationCallback(location)) {
         debug('handling authentication callback');
 
         this._changeState(STATE_AUTHENTICATING);
@@ -909,7 +881,7 @@ this.BYU.oauth.implicit = (function (exports) {
             user,
             token,
             error
-          } = await _handleAuthenticationCallback(this.config, location, hash, this.storageHandler);
+          } = await _handleAuthenticationCallback(this.config, location, this.storageHandler);
 
           this._changeState(state, user, token, error);
         } catch (err) {
@@ -931,95 +903,44 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     _checkExpired(expirationTimeInMs) {
+      var _this = this;
+
       debug('checking expiration time');
       const expiresInMs = expirationTimeInMs - Date.now();
-      const definitelyExpired = expiresInMs < 0; // In certain cases, WSO2 can send us a token whose expiration is ACTUALLY 55 minutes (60 minutes minus the 5-minute grace period) 🤦.
-      // So, if we see a longer-than-55-minute expiration, we may try to silently auto-refresh the token so we can get an accurate expiration.
-      // BUT there's yet another bug in WSO2 where sometimes the authentication response *always* says the expiration is 60 minutes away,
-      // even if it's less than 60 minutes away. So we only do this "maybeFunkyExpiration" *once* per token initialization
 
-      const maybeFunkyExpiration = expiresInMs > FIFTY_FIVE_MINUTES_MILLIS && !this._alreadyDidFunkyCheck; // *After* the "maybeFunky" check, update _alreadyDidFunkyCheck based on whether the current token is expired
+      if (expiresInMs > 30 * 1000) {
+        // 30 second buffer before token actually expires
+        if (this.__expirationTask) {
+          clearTimeout(this.__expirationTask);
+        } // Simply using setTimeout for an hour in the future
+        // doesn't work; setTimeout isn't that precise over that long of a period.
+        // So re-check every five seconds until we're past the expiration time
 
-      this._alreadyDidFunkyCheck = !definitelyExpired;
 
-      if (!definitelyExpired && !maybeFunkyExpiration) {
-        this._scheduleExpirationCheck(expirationTimeInMs);
+        this.__expirationTask = setTimeout(function () {
+          _this.__expirationTask = null;
 
+          _this._checkExpired(expirationTimeInMs);
+        }, 5000);
         return;
       }
 
       if (this.config.autoRefreshOnTimeout) {
-        // If we've expired OR if the WSO2 five-minute grace period was not added, mark the state as refreshing.
-        // Schedule a refresh in an extra 5 seconds to avoid WSO2 clock skew problems.
-        // Existing token *should* have a five-minute grace period after expiration:
-        // a new request will generate a new token, but the old token should still
-        // work during that grace period, so we keep the user and token objects around.
-        if (maybeFunkyExpiration) {
-          debug('silently refreshing token to work around odd identity server issue');
-        }
-
-        this._changeState(STATE_REFRESHING, this.store.user, this.store.token);
-
-        this._scheduleRefresh();
-      } else if (definitelyExpired) {
+        this.startRefresh('iframe');
+      } else {
         // We don't have auto-refresh enabled, so flag the token as expired and let the application handle it.
         this._changeState(STATE_EXPIRED, this.store.user, this.store.token);
       }
-    }
-
-    _scheduleRefresh() {
-      var _this = this;
-
-      info('scheduling auto-refresh');
-
-      if (this.__refreshTask) {
-        debug('refresh already scheduled');
-        return;
-      } // Wait a few seconds before triggering the actual refresh, allowing for clock
-      // skew with WSO2
-
-
-      return this.__refreshTask = setTimeout(function () {
-        _this.__refreshTask = null;
-
-        _this.startRefresh('iframe');
-      }, 5000);
-    }
-
-    _scheduleExpirationCheck(expirationTimeInMs) {
-      var _this2 = this;
-
-      if (this.__expirationTask) {
-        clearTimeout(this.__expirationTask);
-      } // Simply using setTimeout for an hour in the future
-      // doesn't work; setTimeout isn't that precise over that long of a period.
-      // So re-check every five seconds until we're past the expiration time
-
-
-      return this.__expirationTask = setTimeout(function () {
-        _this2.__expirationTask = null;
-
-        _this2._checkExpired(expirationTimeInMs);
-      }, 5000);
     }
 
     get _location() {
       return this.window.location;
     }
 
-    get _hashParams() {
-      return parseHash(this._location.hash);
-    }
-
-    isAuthenticationCallback(href, hash) {
-      const isCallbackUrl = href.indexOf(this.config.callbackUrl) === 0;
-      const hasHash = hash.size !== 0;
-
-      if (!isCallbackUrl || !hasHash) {
-        return false;
-      }
-
-      return hash.has('access_token') || hash.has('error');
+    isAuthenticationCallback(location) {
+      const isCallbackUrl = location.href.indexOf(this.config.callbackUrl) === 0;
+      const hasCode = location.search && location.search.includes('code=') && location.search.includes('state=');
+      return !!(isCallbackUrl && hasCode);
     }
 
     hasStoredSession() {
@@ -1064,7 +985,7 @@ this.BYU.oauth.implicit = (function (exports) {
     }
 
     startLogin(displayType = 'window') {
-      var _this3 = this;
+      var _this2 = this;
 
       infof('Starting login. mode=%s', displayType);
       const {
@@ -1072,11 +993,12 @@ this.BYU.oauth.implicit = (function (exports) {
         callbackUrl
       } = this.config;
       const csrf = randomString();
+      const codeVerifier = randomString(128);
 
-      const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
+      const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
 
       this.storageHandler.saveOAuthState(this.config.clientId, storedState);
-      const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+      const loginUrl = `${this.config.pkceBaseUrl}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeVerifier}&code_challenge_method=plain`;
       debug('computed login url of', loginUrl);
 
       if (!displayType || displayType == 'window') {
@@ -1112,7 +1034,7 @@ this.BYU.oauth.implicit = (function (exports) {
           // report problem
           iframe.parentNode.removeChild(iframe);
 
-          _this3._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+          _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
         }
       };
 
@@ -1151,9 +1073,51 @@ this.BYU.oauth.implicit = (function (exports) {
       // });
     }
 
-    startRefresh(displayType = 'iframe') {
-      infof('starting refresh. displayType=%s', displayType);
-      this.startLogin(displayType);
+    async startRefresh(displayType = 'iframe') {
+      infof('starting refresh. displayType=%s', displayType); // Save copy of current info before triggering changeState
+
+      const token = Object.assign({}, this.store.token);
+      const user = Object.assign({}, this.store.user); // Also pass yet another isolated copy to changeState
+
+      this._changeState(STATE_REFRESHING, Object.assign({}, this.store.user), Object.assign({}, this.store.token));
+
+      if (displayType !== 'iframe') {
+        this.startLogin(displayType);
+        return;
+      } // If we have a refresh token, then try that before doing the more complicated iframe version
+
+
+      if (!(token && token.refresh)) {
+        this.startLogin('iframe');
+        return;
+      }
+
+      const tokenUrl = `${this.config.pkceBaseUrl}/token`;
+      const body = new URLSearchParams();
+      body.set('grant_type', 'refresh_token');
+      body.set('client_id', this.config.clientId);
+      body.set('refresh_token', token.refresh);
+      const resp = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: new Headers({
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }),
+        body
+      });
+
+      if (resp.status !== 200) {
+        this.startLogin('iframe');
+        return;
+      }
+
+      const tokenInfo = await resp.json();
+      token.bearer = tokenInfo.access_token;
+      token.refresh = tokenInfo.refresh_token;
+      token.authorizationHeader = `Bearer ${token.bearer}`;
+      token.expiresAt = new Date(Date.now() + tokenInfo.expires_in * 1000);
+
+      this._changeState(STATE_AUTHENTICATED, user, token);
     }
 
     handleCurrentInfoRequest({
@@ -1224,6 +1188,7 @@ this.BYU.oauth.implicit = (function (exports) {
     return {
       ui: smallerUserInfo,
       at: token.bearer,
+      rf: token.refresh,
       ah: token.authorizationHeader,
       ea: token.expiresAt.getTime()
     };
@@ -1242,7 +1207,13 @@ this.BYU.oauth.implicit = (function (exports) {
 
     const expiresAt = new Date(state.ea);
 
-    const token = _processTokenInfo(userInfo, state.at, expiresAt, `Bearer ${state.at}`);
+    const token = _processTokenInfo({
+      userInfo,
+      accessToken: state.at,
+      expiresAt,
+      authHeader: `Bearer ${state.at}`,
+      refreshToken: state.rf
+    });
 
     return {
       user,
@@ -1286,21 +1257,19 @@ this.BYU.oauth.implicit = (function (exports) {
     provider.document.dispatchEvent(event);
   }
 
-  async function _handleAuthenticationCallback(config, location, hash, storage) {
-    if (hash.has('error')) {
-      error('Got oauth error in URL hash');
-      throw new OAuthError(hash.get('error'), hash.get('error_description'), hash.get('error_uri'));
-    }
-
-    const oauthCsrfToken = hash.get('state');
+  async function _handleAuthenticationCallback(config, location, storage) {
+    const searchParams = new URLSearchParams(location.search);
+    const oauthCsrfToken = searchParams.get('state');
     const storedState = storage.getOAuthState(config.clientId);
     storage.clearOAuthState(config.clientId);
     debug('checking oauth state token');
 
     const pageState = _validateAndGetStoredState(storedState, oauthCsrfToken);
 
-    const accessToken = hash.get('access_token');
-    const expiresIn = Number(hash.get('expires_in'));
+    const tokenInfo = await _fetchTokenInfo(searchParams.get('code'), config, storedState.v);
+    const accessToken = tokenInfo.access_token;
+    const refreshToken = tokenInfo.refresh_token;
+    const expiresIn = tokenInfo.expires_in;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
     const authHeader = `Bearer ${accessToken}`;
     debug('got token', redactBearerToken(accessToken), 'which expires in', expiresIn, 'seconds');
@@ -1308,9 +1277,14 @@ this.BYU.oauth.implicit = (function (exports) {
 
     const user = _processUserInfo(userInfo);
 
-    const token = _processTokenInfo(userInfo, accessToken, expiresAt, authHeader);
+    const token = _processTokenInfo({
+      userInfo,
+      accessToken,
+      expiresAt,
+      authHeader,
+      refreshToken
+    });
 
-    location.hash = '';
     return {
       state: STATE_AUTHENTICATED,
       user,
@@ -1319,6 +1293,35 @@ this.BYU.oauth.implicit = (function (exports) {
   }
 
   const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
+
+  async function _fetchTokenInfo(code, config, codeVerifier) {
+    debug('Exchanging code for token');
+    const tokenUrl = `${config.pkceBaseUrl}/token`;
+    const body = new URLSearchParams();
+    body.set('grant_type', 'authorization_code');
+    body.set('client_id', config.clientId);
+    body.set('redirect_uri', config.callbackUrl);
+    body.set('code', code);
+    body.set('code_verifier', codeVerifier);
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: new Headers({
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }),
+      body
+    });
+
+    if (resp.status !== 200) {
+      const body = await resp.text();
+      error('Error getting OAuth User Info. Status Code:', resp.status, 'Response:\n', body);
+      throw new OAuthError('unable-to-exchange-code-for-token', 'Unable to exchange code for token. Please try again.');
+    }
+
+    const json = await resp.json();
+    debug('successfully got user info', json);
+    return json;
+  }
 
   async function _fetchUserInfo(authHeader) {
     debug('fetching user info from', USER_INFO_URL);
@@ -1436,11 +1439,18 @@ this.BYU.oauth.implicit = (function (exports) {
     };
   }
 
-  function _processTokenInfo(userInfo, accessToken, expiresAt, authHeader) {
+  function _processTokenInfo({
+    userInfo,
+    accessToken,
+    expiresAt,
+    authHeader,
+    refreshToken
+  }) {
     const clientClaims = getClaims(userInfo, CLAIMS_PREFIX_CLIENT);
     const wso2Claims = getClaims(userInfo, CLAIMS_PREFIX_WSO2);
     return {
       bearer: accessToken,
+      refresh: refreshToken,
       authorizationHeader: authHeader,
       expiresAt,
       client: {
@@ -1479,10 +1489,11 @@ this.BYU.oauth.implicit = (function (exports) {
     return pageState;
   }
 
-  function _prepareStoredState(expires, csrfToken, pageState) {
+  function _prepareStoredState(expires, csrfToken, codeVerifier, pageState) {
     return {
       e: expires,
       c: csrfToken,
+      v: codeVerifier,
       s: pageState
     };
   }
@@ -1497,12 +1508,15 @@ this.BYU.oauth.implicit = (function (exports) {
 
   }
 
-  function randomString() {
-    let idArray = new Uint32Array(3);
+  const allowableRandomChars = [...'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'];
+  const randomCharRangeConvert = allowableRandomChars.length / 2 ** 8; // Using Uint8Array for getRandomValues
+
+  function randomString(length) {
+    const randomArray = new Uint8Array(length || 24);
     const crypto = window.crypto || window.msCrypto;
-    crypto.getRandomValues(idArray);
-    return idArray.reduce(function (str, cur) {
-      return str + cur.toString(16);
+    crypto.getRandomValues(randomArray);
+    return randomArray.reduce(function (str, cur) {
+      return str + allowableRandomChars[Math.floor(cur * randomCharRangeConvert)];
     }, '');
   }
 
@@ -1601,11 +1615,16 @@ this.BYU.oauth.implicit = (function (exports) {
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
       callbackUrl: `${location.origin}${location.pathname}`,
-      autoRefreshOnTimeout: false
+      autoRefreshOnTimeout: false,
+      pkceBaseUrl: 'https://pkce-shim-prd.byu-oit-customapps-prd.amazon.byu.edu'
     }, globalConfig, cfg);
 
     if (!config.clientId) {
       throw new Error('clientId must be specified in config');
+    }
+
+    if (config.pkceBaseUrl) {
+      config.pkceBaseUrl = config.pkceBaseUrl.replace(/\/$/, ''); // remove trailing slash
     }
 
     const provider = new ImplicitGrantProvider(config, window, document);
