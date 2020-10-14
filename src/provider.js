@@ -19,6 +19,8 @@
 import * as log from './log.js';
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 import {StorageHandler} from "./local-storage.js";
+import sha256Lib from '../node_modules/js-sha256'
+const sha256 = sha256Lib.sha256
 
 let SINGLETON_INSTANCE;
 
@@ -241,11 +243,17 @@ export class ImplicitGrantProvider {
     const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
     const codeVerifier = randomString(128);
+    // challenge is base64-encoded SHA256 hash of codeVerifier
+    const codeChallenge = btoa(String.fromCharCode(...sha256.array(codeVerifier)))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '')
 
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `${this.config.pkceBaseUrl}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeVerifier}&code_challenge_method=plain`;
+    const loginUrl = `${this.config.pkceBaseUrl}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
