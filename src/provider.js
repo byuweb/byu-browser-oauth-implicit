@@ -19,6 +19,9 @@
 import * as log from './log.js';
 import * as authn from '../node_modules/@byuweb/browser-oauth/constants.js';
 import {StorageHandler} from "./local-storage.js";
+// NOTE: not using browser `crypto` module, because `crypto.subtle` isn't available when the browser isn't in HTTPS,
+// and our development environments usually use plain HTTP. We're only doing a single one-way hash, so performance
+// isn't a big deal
 import sha256Lib from '../node_modules/js-sha256'
 const sha256 = sha256Lib.sha256
 
