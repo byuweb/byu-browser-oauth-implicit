@@ -1530,7 +1530,7 @@ class ImplicitGrantProvider {
     const csrf = randomString();
     const codeVerifier = randomString(128); // challenge is base64-encoded SHA256 hash of codeVerifier
 
-    const codeChallenge = btoa(String.fromCharCode(...sha256$1.array(codeVerifier))).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const codeChallenge = btoa(String.fromCharCode(...sha256$1.array(codeVerifier))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
 
