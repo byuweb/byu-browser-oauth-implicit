@@ -343,7 +343,7 @@ export class ImplicitGrantProvider {
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect)
     const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
     log.info('logging out by redirecting to', logoutUrl);
-    this.window.location = logoutUrl;
+    setTimeout(() => this.window.location = logoutUrl); //bumping to the end of the event queue to make sure session state has cleared
 
     //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
     // const url = `https://api.byu.edu/revoke`;

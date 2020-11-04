@@ -1119,6 +1119,8 @@ class ImplicitGrantProvider {
   }
 
   startLogout() {
+    var _this4 = this;
+
     info('starting logout');
     this.storageHandler.clearSessionState(this.config.clientId); // Need to ensure BOTH api.byu.edu and cas.byu.edu clean out their sessions
     // With current config of those two sites, to have that full clean out AND a final "where to go after logout"
@@ -1128,7 +1130,10 @@ class ImplicitGrantProvider {
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect);
     const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
     info('logging out by redirecting to', logoutUrl);
-    this.window.location = logoutUrl; //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
+    setTimeout(function () {
+      return _this4.window.location = logoutUrl;
+    }); //bumping to the end of the event queue to make sure session state has cleared
+    //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
     // const url = `https://api.byu.edu/revoke`;
     // const form = new URLSearchParams();
     // form.set('token', store.token.bearer);
