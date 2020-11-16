@@ -1131,7 +1131,7 @@ this.BYU.oauth.implicit = (function (exports) {
       // With current config of those two sites, to have that full clean out AND a final "where to go after logout"
       // redirect, we need to manually wrap them all together
 
-      const logoutRedirect = this.config.logoutRedirect === undefined ? this.config.callbackUrl : this.config.logoutRedirect;
+      const logoutRedirect = this.config.logoutRedirect === undefined ? 'https://www.byu.edu' : this.config.logoutRedirect;
       const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect);
       const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
       info('logging out by redirecting to', logoutUrl);
