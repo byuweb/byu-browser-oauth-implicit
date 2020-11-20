@@ -28,7 +28,8 @@ const sha256 = sha256Lib.sha256
 let SINGLETON_INSTANCE;
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
-const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes
+const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes (in milliseconds)
+const EXPIRATION_BUFFER = (5 * 60) + 5; // 5 minutes + 5 seconds (in seconds)
 export const IG_STATE_AUTO_REFRESH_FAILED = 'implicit-grant-auto-refresh-failed'
 
 export class ImplicitGrantProvider {
@@ -174,9 +175,9 @@ export class ImplicitGrantProvider {
   }
 
   _checkExpired(expirationTimeInMs) {
-    log.debug('checking expiration time');
-
     const expiresInMs = expirationTimeInMs - Date.now()
+
+    log.debug(`checking expiration time; expires in ${expiresInMs} ms, ${new Date(expirationTimeInMs)}`);
 
     if (expiresInMs > (30 * 1000)) { // 30 second buffer before token actually expires
       if (this.__expirationTask) {
@@ -370,8 +371,9 @@ export class ImplicitGrantProvider {
     const tokenInfo = await resp.json();
     token.bearer = tokenInfo.access_token;
     token.refresh = tokenInfo.refresh_token;
+    const expiresIn = tokenInfo.expires_in - EXPIRATION_BUFFER;
     token.authorizationHeader = `Bearer ${token.bearer}`;
-    token.expiresAt = new Date(Date.now() + (tokenInfo.expires_in * 1000));
+    token.expiresAt = new Date(Date.now() + (expiresIn * 1000));
 
     this._changeState(authn.STATE_AUTHENTICATED, user, token);
   }
@@ -497,7 +499,7 @@ async function _handleAuthenticationCallback(config, location, storage) {
 
   const accessToken = tokenInfo.access_token;
   const refreshToken = tokenInfo.refresh_token;
-  const expiresIn = tokenInfo.expires_in;
+  const expiresIn = tokenInfo.expires_in - EXPIRATION_BUFFER;
   const expiresAt = new Date(Date.now() + (expiresIn * 1000));
   const authHeader = `Bearer ${accessToken}`;
   log.debug('got token', redactBearerToken(accessToken), 'which expires in', expiresIn, 'seconds');
