@@ -1579,6 +1579,8 @@ this.BYU.oauth.implicit = (function (exports) {
           iframe.parentNode.removeChild(iframe);
 
           _this2._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+
+          _this2._changeState(STATE_UNAUTHENTICATED, null, null);
         }
       };
 

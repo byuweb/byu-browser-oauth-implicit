@@ -288,6 +288,7 @@ export class ImplicitGrantProvider {
         // report problem
         iframe.parentNode.removeChild(iframe)
         this._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null)
+        this._changeState(authn.STATE_UNAUTHENTICATED, null, null)
       }
     }
     iframe.id = CHILD_IFRAME_ID
