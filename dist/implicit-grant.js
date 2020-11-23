@@ -1108,6 +1108,8 @@ class ImplicitGrantProvider {
         iframe.parentNode.removeChild(iframe);
 
         _this3._changeState(IG_STATE_AUTO_REFRESH_FAILED, null, null);
+
+        _this3._changeState(STATE_UNAUTHENTICATED, null, null);
       }
     };
 
