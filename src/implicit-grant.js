@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { ImplicitGrantProvider } from "./provider.js";
+import { IG_STATE_AUTO_REFRESH_FAILED, ImplicitGrantProvider } from "./provider.js";
+export { IG_STATE_AUTO_REFRESH_FAILED }
 
 export const DEFAULT_ISSUER = 'https://api.byu.edu';
 

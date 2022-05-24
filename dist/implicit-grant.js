@@ -2206,5 +2206,5 @@ function resolveConfig(rules, location) {
   throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
 }
 
-export { DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, configure };
+export { DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, IG_STATE_AUTO_REFRESH_FAILED, configure };
 //# sourceMappingURL=implicit-grant.js.map

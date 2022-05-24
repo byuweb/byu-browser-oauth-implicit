@@ -2213,6 +2213,7 @@ this.BYU.oauth.implicit = (function (exports) {
 
   exports.DEFAULT_ISSUER = DEFAULT_ISSUER;
   exports.GLOBAL_CONFIG_KEY = GLOBAL_CONFIG_KEY;
+  exports.IG_STATE_AUTO_REFRESH_FAILED = IG_STATE_AUTO_REFRESH_FAILED;
   exports.configure = configure;
 
   return exports;

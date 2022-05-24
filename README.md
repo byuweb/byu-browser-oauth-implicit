@@ -82,6 +82,7 @@ Name | Type | Default   | Description
 clientId | String | **None (required)** | The OAuth client ID
 callbackUrl | URL String | Current URL | The callback URL registered to your application
 autoRefreshOnTimeout | Boolean | false | Whether to try to automatically refresh the user's session when it expires
+logoutRedirect | URL String | Current URL | Where the user's browser should redirect after completing logout process
 issuer | URL String | https://api.byu.edu | The OAuth issuer to use. Do not change this unless you know what you are doing.
 
 ```js
