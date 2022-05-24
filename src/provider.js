@@ -37,6 +37,8 @@ export class ImplicitGrantProvider {
     this.storageHandler = storageHandler;
     this._listeners = {};
 
+    this.config.baseUrl = this.config.issuer.replace(/\/+$/, '') // strip trailing slash(es)
+
     this.store = Object.freeze({
       state: authn.STATE_INDETERMINATE,
       user: null,
@@ -286,13 +288,13 @@ export class ImplicitGrantProvider {
 
   startLogin(displayType = 'window') {
     log.infof('Starting login. mode=%s', displayType);
-    const {clientId, callbackUrl} = this.config;
+    const {clientId, callbackUrl, baseUrl} = this.config;
     const csrf = randomString();
 
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+    const loginUrl = `${baseUrl}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -341,7 +343,7 @@ export class ImplicitGrantProvider {
     // redirect, we need to manually wrap them all together
     const logoutRedirect = (this.config.logoutRedirect === undefined) ? this.config.callbackUrl : this.config.logoutRedirect
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect)
-    const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
+    const logoutUrl = `${this.config.baseUrl}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
     log.info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl;
 
