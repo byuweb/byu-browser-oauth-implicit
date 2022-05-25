@@ -294,7 +294,7 @@ export class ImplicitGrantProvider {
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `${baseUrl}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+    const loginUrl = `${baseUrl}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid%20token-introspection&state=${csrf}`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
