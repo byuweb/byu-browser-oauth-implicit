@@ -22,6 +22,7 @@ import {parseHash} from './url.js';
 import {StorageHandler} from "./local-storage.js";
 
 let SINGLETON_INSTANCE;
+let BASE_URL;
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
@@ -37,7 +38,7 @@ export class ImplicitGrantProvider {
     this.storageHandler = storageHandler;
     this._listeners = {};
 
-    this.config.baseUrl = this.config.issuer.replace(/\/+$/, '') // strip trailing slash(es)
+    BASE_URL = this.config.issuer.replace(/\/+$/, '') // strip trailing slash(es)
 
     this.store = Object.freeze({
       state: authn.STATE_INDETERMINATE,
@@ -288,13 +289,13 @@ export class ImplicitGrantProvider {
 
   startLogin(displayType = 'window') {
     log.infof('Starting login. mode=%s', displayType);
-    const {clientId, callbackUrl, baseUrl} = this.config;
+    const {clientId, callbackUrl} = this.config;
     const csrf = randomString();
 
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `${baseUrl}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid%20token-introspection&state=${csrf}`;
+    const loginUrl = `${BASE_URL}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -343,7 +344,7 @@ export class ImplicitGrantProvider {
     // redirect, we need to manually wrap them all together
     const logoutRedirect = (this.config.logoutRedirect === undefined) ? this.config.callbackUrl : this.config.logoutRedirect
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect)
-    const logoutUrl = `${this.config.baseUrl}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
+    const logoutUrl = `${BASE_URL}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
     log.info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl;
 
@@ -513,9 +514,9 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
 
-const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
 
 async function _fetchUserInfo(authHeader) {
+  const USER_INFO_URL = `${BASE_URL}/openid-userinfo/v1/userinfo?schema=openid`;
   log.debug('fetching user info from', USER_INFO_URL);
   const resp = await fetch(USER_INFO_URL, {
     method: 'GET',
