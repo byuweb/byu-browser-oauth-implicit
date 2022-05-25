@@ -40,17 +40,12 @@ export async function configure(cfgOrRules, location = window.location) {
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
     callbackUrl: `${location.origin}${location.pathname}`,
-    autoRefreshOnTimeout: false,
-    pkceBaseUrl: 'https://pkce-shim-prd.byu-oit-customapps-prd.amazon.byu.edu'
+    autoRefreshOnTimeout: false
   }, globalConfig, cfg);
 
   if (!config.clientId) {
     throw new Error('clientId must be specified in config');
   }
-  if (config.pkceBaseUrl) {
-    config.pkceBaseUrl = config.pkceBaseUrl.replace(/\/$/, '') // remove trailing slash
-  }
-
   const provider = new ImplicitGrantProvider(config, window, document);
 
   return provider.startup();

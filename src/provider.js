@@ -26,6 +26,7 @@ import sha256Lib from 'js-sha256'
 const sha256 = sha256Lib.sha256
 
 let SINGLETON_INSTANCE;
+let BASE_URL;
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes (in milliseconds)
@@ -40,6 +41,8 @@ export class ImplicitGrantProvider {
     this.document = document;
     this.storageHandler = storageHandler;
     this._listeners = {};
+
+    BASE_URL = this.config.issuer.replace(/\/+$/, '') // strip trailing slash(es)
 
     this.store = Object.freeze({
       state: authn.STATE_INDETERMINATE,
@@ -256,7 +259,7 @@ export class ImplicitGrantProvider {
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, codeVerifier, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `${this.config.pkceBaseUrl}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+    const loginUrl = `${BASE_URL}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -306,7 +309,7 @@ export class ImplicitGrantProvider {
     // redirect, we need to manually wrap them all together
     const logoutRedirect = (this.config.logoutRedirect === undefined) ? this.config.callbackUrl : this.config.logoutRedirect
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect)
-    const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
+    const logoutUrl = `${BASE_URL}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
     log.info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl;
 
@@ -352,7 +355,7 @@ export class ImplicitGrantProvider {
       return;
     }
 
-    const tokenUrl = `${this.config.pkceBaseUrl}/token`;
+    const tokenUrl = `${BASE_URL}/token`;
     const body = new URLSearchParams();
     body.set('grant_type', 'refresh_token');
     body.set('client_id', this.config.clientId);
@@ -513,11 +516,10 @@ async function _handleAuthenticationCallback(config, location, storage) {
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
 
-const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
 
 async function _fetchTokenInfo(code, config, codeVerifier) {
   log.debug('Exchanging code for token');
-  const tokenUrl = `${config.pkceBaseUrl}/token`;
+  const tokenUrl = `${BASE_URL}/token`;
   const body = new URLSearchParams();
   body.set('grant_type', 'authorization_code');
   body.set('client_id', config.clientId);
@@ -547,6 +549,7 @@ async function _fetchTokenInfo(code, config, codeVerifier) {
 }
 
 async function _fetchUserInfo(authHeader) {
+  const USER_INFO_URL = `${BASE_URL}/openid-userinfo/v1/userinfo?schema=openid`;
   log.debug('fetching user info from', USER_INFO_URL);
   const resp = await fetch(USER_INFO_URL, {
     method: 'GET',
