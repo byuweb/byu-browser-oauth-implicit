@@ -18,6 +18,7 @@ import { IG_STATE_AUTO_REFRESH_FAILED, ImplicitGrantProvider } from "./provider.
 export { IG_STATE_AUTO_REFRESH_FAILED }
 
 export const DEFAULT_ISSUER = 'https://api.byu.edu';
+export const DEFAULT_BASE_URL = 'https://api.byu.edu';
 
 export const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
 
@@ -25,6 +26,7 @@ export const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
  * @typedef {} ImplicitConfig
  * @prop {string} clientId
  * @prop {?string} issuer
+ * @prop {?string} baseUrl
  * @prop {?string} callbackUrl
  * @prop {?boolean} requireAuthentication
  */
@@ -39,6 +41,7 @@ export async function configure(cfgOrRules, location = window.location) {
 
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
+    baseUrl: DEFAULT_BASE_URL,
     callbackUrl: `${location.origin}${location.pathname}`,
     autoRefreshOnTimeout: false,
     pkceBaseUrl: 'https://pkce-shim-prd.byu-oit-customapps-prd.amazon.byu.edu'

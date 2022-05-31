@@ -1260,6 +1260,7 @@ var sha256 = createCommonjsModule(function (module) {
  */
 const sha256$1 = sha256.sha256;
 let SINGLETON_INSTANCE;
+let BASE_URL;
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe';
 const STORED_STATE_LIFETIME = 5 * 60 * 1000; // 5 minutes (in milliseconds)
 
@@ -1274,6 +1275,8 @@ class ImplicitGrantProvider {
     this.document = document;
     this.storageHandler = storageHandler;
     this._listeners = {};
+    BASE_URL = this.config.baseUrl.replace(/\/+$/, ''); // strip trailing slash(es)
+
     this.store = Object.freeze({
       state: STATE_INDETERMINATE,
       user: null,
@@ -1594,7 +1597,7 @@ class ImplicitGrantProvider {
 
     const logoutRedirect = this.config.logoutRedirect === undefined ? this.config.callbackUrl : this.config.logoutRedirect;
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect);
-    const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
+    const logoutUrl = `${BASE_URL}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
     info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl; //TODO: WSO2 Identity Server 5.1 allows us to revoke implicit tokens.  Once that's done, we'll need to do this.
     // const url = `https://api.byu.edu/revoke`;
@@ -1834,8 +1837,6 @@ async function _handleAuthenticationCallback(config, location, storage) {
   };
 }
 
-const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
-
 async function _fetchTokenInfo(code, config, codeVerifier) {
   debug('Exchanging code for token');
   const tokenUrl = `${config.pkceBaseUrl}/token`;
@@ -1866,6 +1867,7 @@ async function _fetchTokenInfo(code, config, codeVerifier) {
 }
 
 async function _fetchUserInfo(authHeader) {
+  const USER_INFO_URL = `${BASE_URL}/openid-userinfo/v1/userinfo?schema=openid`;
   debug('fetching user info from', USER_INFO_URL);
   const resp = await fetch(USER_INFO_URL, {
     method: 'GET',
@@ -2137,11 +2139,13 @@ function cleanupOnlyInstance(obj) {
  * limitations under the License.
  */
 const DEFAULT_ISSUER = 'https://api.byu.edu';
+const DEFAULT_BASE_URL = 'https://api.byu.edu';
 const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
 /**
  * @typedef {} ImplicitConfig
  * @prop {string} clientId
  * @prop {?string} issuer
+ * @prop {?string} baseUrl
  * @prop {?string} callbackUrl
  * @prop {?boolean} requireAuthentication
  */
@@ -2156,6 +2160,7 @@ async function configure(cfgOrRules, location = window.location) {
   const globalConfig = window[GLOBAL_CONFIG_KEY];
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
+    baseUrl: DEFAULT_BASE_URL,
     callbackUrl: `${location.origin}${location.pathname}`,
     autoRefreshOnTimeout: false,
     pkceBaseUrl: 'https://pkce-shim-prd.byu-oit-customapps-prd.amazon.byu.edu'
@@ -2206,5 +2211,5 @@ function resolveConfig(rules, location) {
   throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
 }
 
-export { DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, IG_STATE_AUTO_REFRESH_FAILED, configure };
+export { DEFAULT_BASE_URL, DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, IG_STATE_AUTO_REFRESH_FAILED, configure };
 //# sourceMappingURL=implicit-grant.js.map
