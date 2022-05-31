@@ -22,6 +22,7 @@ import {parseHash} from './url.js';
 import {StorageHandler} from "./local-storage.js";
 
 let SINGLETON_INSTANCE;
+let BASE_URL;
 
 const CHILD_IFRAME_ID = 'byu-oauth-implicit-grant-refresh-iframe'
 const FIFTY_FIVE_MINUTES_MILLIS = 3300000;
@@ -36,6 +37,8 @@ export class ImplicitGrantProvider {
     this.document = document;
     this.storageHandler = storageHandler;
     this._listeners = {};
+
+    BASE_URL = this.config.baseUrl.replace(/\/+$/, '') // strip trailing slash(es)
 
     this.store = Object.freeze({
       state: authn.STATE_INDETERMINATE,
@@ -292,7 +295,7 @@ export class ImplicitGrantProvider {
     const storedState = _prepareStoredState(Date.now() + STORED_STATE_LIFETIME, csrf, {});
     this.storageHandler.saveOAuthState(this.config.clientId, storedState);
 
-    const loginUrl = `https://api.byu.edu/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
+    const loginUrl = `${BASE_URL}/authorize?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=openid&state=${csrf}`;
     log.debug('computed login url of', loginUrl);
 
     if (!displayType || displayType == 'window') {
@@ -341,7 +344,7 @@ export class ImplicitGrantProvider {
     // redirect, we need to manually wrap them all together
     const logoutRedirect = (this.config.logoutRedirect === undefined) ? this.config.callbackUrl : this.config.logoutRedirect
     const casLogoutUrl = 'https://cas.byu.edu/cas/logout?service=' + encodeURIComponent(logoutRedirect)
-    const logoutUrl = 'https://api.byu.edu/logout?redirect_url=' + encodeURIComponent(casLogoutUrl);
+    const logoutUrl = `${BASE_URL}/logout?redirect_url=` + encodeURIComponent(casLogoutUrl);
     log.info('logging out by redirecting to', logoutUrl);
     this.window.location = logoutUrl;
 
@@ -511,9 +514,9 @@ async function _handleAuthenticationCallback(config, location, hash, storage) {
   return {state: authn.STATE_AUTHENTICATED, user, token};
 }
 
-const USER_INFO_URL = 'https://api.byu.edu/openid-userinfo/v1/userinfo?schema=openid';
 
 async function _fetchUserInfo(authHeader) {
+  const USER_INFO_URL = `${BASE_URL}/openid-userinfo/v1/userinfo?schema=openid`;
   log.debug('fetching user info from', USER_INFO_URL);
   const resp = await fetch(USER_INFO_URL, {
     method: 'GET',
