@@ -765,7 +765,7 @@ this.BYU.oauth.implicit = (function (exports) {
       this.document = document;
       this.storageHandler = storageHandler;
       this._listeners = {};
-      BASE_URL = this.config.issuer.replace(/\/+$/, ''); // strip trailing slash(es)
+      BASE_URL = this.config.baseUrl.replace(/\/+$/, ''); // strip trailing slash(es)
 
       this.store = Object.freeze({
         state: STATE_INDETERMINATE,
@@ -1583,11 +1583,13 @@ this.BYU.oauth.implicit = (function (exports) {
    * limitations under the License.
    */
   const DEFAULT_ISSUER = 'https://api.byu.edu';
+  const DEFAULT_BASE_URL = 'https://api.byu.edu';
   const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
   /**
    * @typedef {} ImplicitConfig
    * @prop {string} clientId
    * @prop {?string} issuer
+   * @prop {?string} baseUrl
    * @prop {?string} callbackUrl
    * @prop {?boolean} requireAuthentication
    */
@@ -1602,6 +1604,7 @@ this.BYU.oauth.implicit = (function (exports) {
     const globalConfig = window[GLOBAL_CONFIG_KEY];
     const config = Object.assign({
       issuer: DEFAULT_ISSUER,
+      baseUrl: DEFAULT_BASE_URL,
       callbackUrl: `${location.origin}${location.pathname}`,
       autoRefreshOnTimeout: false
     }, globalConfig, cfg);
@@ -1647,6 +1650,7 @@ this.BYU.oauth.implicit = (function (exports) {
     throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
   }
 
+  exports.DEFAULT_BASE_URL = DEFAULT_BASE_URL;
   exports.DEFAULT_ISSUER = DEFAULT_ISSUER;
   exports.GLOBAL_CONFIG_KEY = GLOBAL_CONFIG_KEY;
   exports.IG_STATE_AUTO_REFRESH_FAILED = IG_STATE_AUTO_REFRESH_FAILED;

@@ -760,7 +760,7 @@ class ImplicitGrantProvider {
     this.document = document;
     this.storageHandler = storageHandler;
     this._listeners = {};
-    BASE_URL = this.config.issuer.replace(/\/+$/, ''); // strip trailing slash(es)
+    BASE_URL = this.config.baseUrl.replace(/\/+$/, ''); // strip trailing slash(es)
 
     this.store = Object.freeze({
       state: STATE_INDETERMINATE,
@@ -1578,11 +1578,13 @@ function cleanupOnlyInstance(obj) {
  * limitations under the License.
  */
 const DEFAULT_ISSUER = 'https://api.byu.edu';
+const DEFAULT_BASE_URL = 'https://api.byu.edu';
 const GLOBAL_CONFIG_KEY = 'byu-oauth-implicit-config';
 /**
  * @typedef {} ImplicitConfig
  * @prop {string} clientId
  * @prop {?string} issuer
+ * @prop {?string} baseUrl
  * @prop {?string} callbackUrl
  * @prop {?boolean} requireAuthentication
  */
@@ -1597,6 +1599,7 @@ async function configure(cfgOrRules, location = window.location) {
   const globalConfig = window[GLOBAL_CONFIG_KEY];
   const config = Object.assign({
     issuer: DEFAULT_ISSUER,
+    baseUrl: DEFAULT_BASE_URL,
     callbackUrl: `${location.origin}${location.pathname}`,
     autoRefreshOnTimeout: false
   }, globalConfig, cfg);
@@ -1642,5 +1645,5 @@ function resolveConfig(rules, location) {
   throw new Error(`Unable to match url [${location.href}] to one of [${keys}]`);
 }
 
-export { DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, IG_STATE_AUTO_REFRESH_FAILED, configure };
+export { DEFAULT_BASE_URL, DEFAULT_ISSUER, GLOBAL_CONFIG_KEY, IG_STATE_AUTO_REFRESH_FAILED, configure };
 //# sourceMappingURL=implicit-grant.js.map
