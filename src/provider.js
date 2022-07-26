@@ -42,7 +42,7 @@ export class ImplicitGrantProvider {
     this.storageHandler = storageHandler;
     this._listeners = {};
 
-    BASE_URL = this.config.issuer.replace(/\/+$/, '') // strip trailing slash(es)
+    BASE_URL = this.config.baseUrl.replace(/\/+$/, '') // strip trailing slash(es)
 
     this.store = Object.freeze({
       state: authn.STATE_INDETERMINATE,
